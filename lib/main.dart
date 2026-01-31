@@ -1,8 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:recommended_restaurant_entertainment/UserProfileScreen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-void main() {
+// Import your pages
+import 'package:recommended_restaurant_entertainment/loginModule/login_page.dart';
+import 'package:recommended_restaurant_entertainment/discoverModule/discoverPage.dart';
+import 'package:recommended_restaurant_entertainment/profile.dart';
+
+// 1. Your Supabase Credentials
+const String url = 'https://bljokgoarqfpkcthkmvq.supabase.co';
+const String key = 'sb_secret_99fIQ1nuXy1Hz1f2yYnrqQ_HsatXb3B';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 2. Initialize Supabase
+  await Supabase.initialize(
+    url: url,
+    anonKey: key,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+    ),
+  );
+
   runApp(const MyApp());
 }
 
@@ -15,32 +35,33 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'FYP App',
       theme: ThemeData(
-        // FIXED: Added ColorScheme class name
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Home Page'),
+      // The flow starts here
+      home: const LoginPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-  final String title;
+// 3. The Main Navigation Wrapper (Teammate's Design)
+class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _selectedIndex = 4;
+class _MainNavigationState extends State<MainNavigation> {
+  // Navigation starts at DiscoverPage (Index 0)
+  int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    const Center(child: Text('Home Screen')),
+    const DiscoverPage(), // Your Discover Page is the first screen after login
     const Center(child: Text('Location Screen')),
     const Center(child: Text('Add Post Screen')),
     const Center(child: Text('Chat Screen')),
-    const UserProfileScreen(),
+    const ProfilePage(),
   ];
 
   void _onItemTapped(int index) {
@@ -83,7 +104,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blueAccent.withOpacity(0.3),
+                    // Updated to avoid deprecation warning
+                    color: Colors.blueAccent.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),

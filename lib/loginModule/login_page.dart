@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recommended_restaurant_entertainment/main.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/register_page.dart';
+// Import your new forgot password page
+import 'package:recommended_restaurant_entertainment/loginModule/forgotPassword_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -63,7 +65,6 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // Applying the Gradient to the whole background
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
@@ -94,11 +95,10 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 30),
 
-                  // Login Form Container
                   Container(
                     padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.9), // Modern glass effect
+                      color: Colors.white.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -137,7 +137,15 @@ class _LoginPageState extends State<LoginPage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: () {},
+                            // MODIFIED: Navigates to the new page
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const ForgotPasswordPage(),
+                                ),
+                              );
+                            },
                             child: const Text("Forgot password?",
                                 style: TextStyle(color: Colors.blueAccent, fontSize: 13)),
                           ),
@@ -152,7 +160,6 @@ class _LoginPageState extends State<LoginPage> {
 
                         const SizedBox(height: 10),
 
-                        // Login Button with persistent gradient style
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -208,7 +215,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Helper to keep the text fields consistent
   Widget _buildTextField({
     required TextEditingController controller,
     required String hint,

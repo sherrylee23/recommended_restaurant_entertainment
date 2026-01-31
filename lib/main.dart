@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:recommended_restaurant_entertainment/UserProfileScreen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -61,7 +62,7 @@ class _MainNavigationState extends State<MainNavigation> {
     const Center(child: Text('Location Screen')),
     const Center(child: Text('Add Post Screen')),
     const Center(child: Text('Chat Screen')),
-    const ProfilePage(),
+    const UserProfileScreen(),
   ];
 
   void _onItemTapped(int index) {

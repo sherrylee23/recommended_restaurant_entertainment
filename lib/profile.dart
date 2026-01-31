@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+/*import 'package:flutter/material.dart';
 // Make sure this path correctly points to your login_page.dart file
 import 'package:recommended_restaurant_entertainment/loginModule/login_page.dart';
 import 'package:flutter/material.dart';
@@ -49,4 +49,4 @@ class ProfilePage extends StatelessWidget {
       ),
     );
   }
-}
+}*/

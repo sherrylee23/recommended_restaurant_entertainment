@@ -6,9 +6,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 // Import your pages
 import 'package:recommended_restaurant_entertainment/loginModule/login_page.dart';
 import 'package:recommended_restaurant_entertainment/discoverModule/discoverPage.dart';
-import 'package:recommended_restaurant_entertainment/profile.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/updatePassword_page.dart';
 import 'package:recommended_restaurant_entertainment/postModule/createPost.dart';
+import 'package:recommended_restaurant_entertainment/userModule/user_profile.dart';
 
 // 1. Your Supabase Credentials
 const String url = 'https://bljokgoarqfpkcthkmvq.supabase.co';
@@ -48,7 +48,10 @@ class MyApp extends StatelessWidget {
 
 // 3. The Main Navigation Wrapper
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+  // Added userData to receive info from LoginPage
+  final Map<String, dynamic> userData;
+
+  const MainNavigation({super.key, required this.userData});
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
@@ -58,16 +61,26 @@ class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   late final StreamSubscription<AuthState> _authSubscription;
 
+  // Use late to initialize pages once widget data is available [cite: 7]
+  late final List<Widget> _pages;
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize the pages and pass the user data to the profile page
+    _pages = [
+      const DiscoverPage(),
+      const Center(child: Text('Location Screen')),
+      const SizedBox.shrink(),
+      const Center(child: Text('Chat Screen')),
+      UserProfilePage(userData: widget.userData),
+    ];
+
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final AuthChangeEvent event = data.event;
-
-      // Check if the event is password recovery
       if (event == AuthChangeEvent.passwordRecovery) {
         if (mounted) {
-          // Navigate to your specific page instead of showing a dialog
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const UpdatePasswordPage()),
@@ -79,63 +92,16 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   void dispose() {
-    _authSubscription.cancel(); // Clean up the listener
+    _authSubscription.cancel();
     super.dispose();
   }
 
-  // Popup Dialog to set the new password
-  void _showResetPasswordDialog() {
-    final TextEditingController newPassController = TextEditingController();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text("Create New Password"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Your email is verified. Please set a new password below."),
-            const SizedBox(height: 15),
-            TextField(
-              controller: newPassController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: "New Password (min 8 chars)",
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () async {
-              final newPassword = newPassController.text.trim();
-              if (newPassword.length >= 8) {
-                await _updateUserPassword(newPassword);
-                if (mounted) Navigator.pop(context);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Password too short!")),
-                );
-              }
-            },
-            child: const Text("Update Password"),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Update logic for both Auth and Profiles table
   Future<void> _updateUserPassword(String newPassword) async {
     try {
-      // 1. Update the official Supabase Auth Password
       await Supabase.instance.client.auth.updateUser(
         UserAttributes(password: newPassword),
       );
 
-      // 2. Update your manual 'profiles' table to keep it in sync
       final String? userEmail = Supabase.instance.client.auth.currentUser?.email;
       if (userEmail != null) {
         await Supabase.instance.client
@@ -153,15 +119,6 @@ class _MainNavigationState extends State<MainNavigation> {
       );
     }
   }
-
-// 1. Updated Pages List (Remove CreatePostPage from here to avoid index conflicts)
-  final List<Widget> _pages = [
-    const DiscoverPage(),
-    const Center(child: Text('Location Screen')),
-    const SizedBox.shrink(),
-    const Center(child: Text('Chat Screen')),
-    const ProfilePage(),
-  ];
 
   void _onItemTapped(int index) {
     if (index == 2) {
@@ -213,7 +170,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blueAccent.withValues(alpha: 0.3),
+                    color: Colors.blueAccent.withOpacity(0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),

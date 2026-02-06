@@ -4,6 +4,7 @@ import 'package:recommended_restaurant_entertainment/main.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/register_page.dart';
 // Import your new forgot password page
 import 'package:recommended_restaurant_entertainment/loginModule/forgotPassword_page.dart';
+import 'package:recommended_restaurant_entertainment/userModule/user_profile.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -40,11 +41,16 @@ class _LoginPageState extends State<LoginPage> {
           .eq('password', password)
           .or('email.eq.$identifier,username.eq.$identifier');
 
+      // Inside _login() in LoginPage
+      // Inside _login() in login_page.dart
       if (data.isNotEmpty) {
         if (mounted) {
+          final userMap = data.first as Map<String, dynamic>; // This is the user profile from Supabase [cite: 7, 8]
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const MainNavigation()),
+            MaterialPageRoute(
+              builder: (_) => MainNavigation(userData: userMap), // Pass data here
+            ),
           );
         }
       } else {

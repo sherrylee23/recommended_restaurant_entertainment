@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart'; // Ensure 'uuid: ^4.5.1' is in your pubspec.yaml [cite: 49]
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -9,6 +10,7 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  // Controllers for text input [cite: 50, 51]
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -24,13 +26,12 @@ class _RegisterPageState extends State<RegisterPage> {
     final username = _usernameController.text.trim();
     final fullName = _fullNameController.text.trim();
 
-    // 1. Validation Logic
+    // 1. Validation Logic [cite: 53]
     if (email.isEmpty || password.isEmpty || username.isEmpty || fullName.isEmpty) {
       _showSnackBar("All fields are required", Colors.red);
       return;
     }
 
-    // NEW: Password length validation (at least 8 characters)
     if (password.length < 8) {
       _showSnackBar("Password must be at least 8 characters long", Colors.orange);
       return;
@@ -44,7 +45,12 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Generate a valid UUID v4 string to satisfy the database type
+      final String generatedUuid = const Uuid().v4();
+
+      // 2. Insert into Supabase 'profiles' table
       await Supabase.instance.client.from('profiles').insert({
+        'user_id': generatedUuid,
         'name': fullName,
         'email': email,
         'username': username,
@@ -72,7 +78,6 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // Applying the consistent Gradient Background
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
@@ -91,7 +96,6 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                // Nomi Brand Logo
                 const Text(
                   "Nomi",
                   style: TextStyle(
@@ -102,8 +106,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Form Card
                 Container(
                   padding: const EdgeInsets.all(25),
                   decoration: BoxDecoration(
@@ -135,8 +137,6 @@ class _RegisterPageState extends State<RegisterPage> {
                       const SizedBox(height: 12),
                       _buildField("Confirm Password", Icons.lock, _confirmPasswordController, isPass: true),
                       const SizedBox(height: 24),
-
-                      // Gradient Button matching the app theme
                       SizedBox(
                         width: double.infinity,
                         height: 50,

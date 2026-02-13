@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({super.key});
@@ -10,11 +11,65 @@ class FeedbackPage extends StatefulWidget {
 class _FeedbackPageState extends State<FeedbackPage> {
   final TextEditingController _feedbackController = TextEditingController();
   int _rating = 0;
+  bool _isLoading = false; // Added to handle loading state
+
+  /// Handles the submission logic to Supabase
+  Future<void> _submitFeedback() async {
+    final description = _feedbackController.text.trim();
+
+    // 1. Validation
+    if (description.isEmpty) {
+      _showSnackBar("Please describe your issue or suggestion.");
+      return;
+    }
+    if (_rating == 0) {
+      _showSnackBar("Please provide a star rating.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 2. Insert data into Supabase table 'feedback'
+      await Supabase.instance.client.from('feedback').insert({
+        'description': description,
+        'rating': _rating,
+        // 'image_url': null, // Logic for images can be added later
+      });
+
+      if (mounted) {
+        _showSnackBar("Feedback submitted successfully!", isError: false);
+        Navigator.pop(context); // Go back after success
+      }
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar("Error: ${e.toString()}");
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // We use extendBodyBehindAppBar so the background starts from the very top
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         leading: IconButton(
@@ -25,13 +80,12 @@ class _FeedbackPageState extends State<FeedbackPage> {
           "Feedback",
           style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
-        backgroundColor: Colors.transparent, // Make AppBar transparent
+        backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        // --- GRADIENT BACKGROUND ---
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.centerLeft,
@@ -53,7 +107,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9), // Slightly transparent white
+                    color: Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TextField(
@@ -81,7 +135,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
                       onTap: () {
-                        // Logic to pick photos/videos
+                        // Logic to pick photos/videos will go here
                       },
                       child: Container(
                         padding: const EdgeInsets.all(8),
@@ -145,9 +199,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Logic to submit feedback
-                      },
+                      onPressed: _isLoading ? null : _submitFeedback,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
                         shadowColor: Colors.transparent,
@@ -155,7 +207,14 @@ class _FeedbackPageState extends State<FeedbackPage> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: const Text(
+                      child: _isLoading
+                          ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2),
+                      )
+                          : const Text(
                         "Submit Feedback",
                         style: TextStyle(
                           color: Colors.white,

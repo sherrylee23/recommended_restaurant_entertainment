@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-// Import the stats page we created
+// Imports for your admin modules
 import 'package:recommended_restaurant_entertainment/adminModule/admin_stats.dart';
 import 'admin_approval_list.dart';
+import 'admin_feedback_list.dart';
 
 class AdminDashboard extends StatefulWidget {
   final Map<String, dynamic> adminData;
@@ -23,15 +24,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   void initState() {
     super.initState();
+    // Initialize the list of pages
     _adminPages = [
-      AdminApprovalList(adminData: widget.adminData), // Business verification logic
-      const AdminStatsPage(),                        // Growth and user stats logic
+      AdminApprovalList(adminData: widget.adminData),
+      const AdminStatsPage(),
+      const AdminFeedbackList(),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
-    // Check if the app is being viewed on a Desktop screen
+    // Check if the app is being viewed on a Desktop/Large screen
     bool isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
@@ -41,7 +44,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           if (isDesktop)
             NavigationRail(
               selectedIndex: _selectedIndex,
-              extended: MediaQuery.of(context).size.width > 1000, // Auto-expand sidebar
+              extended: MediaQuery.of(context).size.width > 1000,
               onDestinationSelected: (int index) => setState(() => _selectedIndex = index),
               leading: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
@@ -57,6 +60,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   icon: Icon(LucideIcons.barChart2),
                   selectedIcon: Icon(LucideIcons.barChart2, color: Colors.blueAccent),
                   label: Text('Stats'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(LucideIcons.messageSquare),
+                  selectedIcon: Icon(LucideIcons.messageSquare, color: Colors.blueAccent),
+                  label: Text('Feedback'),
                 ),
               ],
               trailing: Expanded(
@@ -74,7 +82,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             ),
 
-          const VerticalDivider(thickness: 1, width: 1),
+          if (isDesktop) const VerticalDivider(thickness: 1, width: 1),
 
           // Main Content Area
           Expanded(
@@ -87,10 +95,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ? null
           : BottomNavigationBar(
         currentIndex: _selectedIndex,
+        type: BottomNavigationBarType.fixed, // Ensures all 3 items show clearly
         onTap: (index) => setState(() => _selectedIndex = index),
+        selectedItemColor: Colors.blueAccent,
+        unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(icon: Icon(LucideIcons.checkCircle), label: 'Approvals'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.barChart2), label: 'Stats'),
+          BottomNavigationBarItem(
+            icon: Icon(LucideIcons.checkCircle),
+            label: 'Approvals',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(LucideIcons.barChart2),
+            label: 'Stats',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(LucideIcons.messageSquare),
+            label: 'Feedback',
+          ),
         ],
       ),
     );

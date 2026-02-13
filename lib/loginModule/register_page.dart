@@ -5,7 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 
 class RegisterPage extends StatefulWidget {
-  const RegisterPage({super.key});
+  final bool initialIsBusiness;
+  const RegisterPage({super.key, this.initialIsBusiness = false});
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -14,18 +15,25 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
   final usernameController = TextEditingController();
+  final fullNameController = TextEditingController();
   final businessNameController = TextEditingController();
   final regNoController = TextEditingController();
 
   File? _ssmFile;
-  String _selectedType = 'Restaurant'; // RESTORED: Business Type
+  String _selectedType = 'Restaurant'; // Default selection
   bool _isLoading = false;
-  bool isBusiness = false;
+  late bool isBusiness;
   String errorText = "";
 
-  // List for the dropdown
-  final List<String> businessTypes = ['Restaurant', 'Entertainment', 'Cafe', 'Other'];
+  final List<String> businessTypes = ['Restaurant', 'Entertainment'];
+
+  @override
+  void initState() {
+    super.initState();
+    isBusiness = widget.initialIsBusiness;
+  }
 
   Future<void> _pickImage() async {
     final image = await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -34,37 +42,43 @@ class _RegisterPageState extends State<RegisterPage> {
 
   Future<void> _register() async {
     setState(() { _isLoading = true; errorText = ""; });
-
     try {
+      if (passwordController.text != confirmPasswordController.text) {
+        throw "Passwords do not match";
+      }
+
       if (isBusiness) {
         if (_ssmFile == null) throw "Please upload SSM photo";
 
+        // Upload SSM Photo to Storage
         final fileName = 'ssm_${DateTime.now().millisecondsSinceEpoch}.jpg';
         await Supabase.instance.client.storage.from('business_assets').upload(fileName, _ssmFile!);
         final publicUrl = Supabase.instance.client.storage.from('business_assets').getPublicUrl(fileName);
 
-        // ID is omitted here so the database handles it automatically
+        // Save to business_profiles table
         await Supabase.instance.client.from('business_profiles').insert({
           'business_name': businessNameController.text.trim(),
           'email': emailController.text.trim(),
           'password': passwordController.text.trim(),
           'register_no': regNoController.text.trim(),
           'ssm_url': publicUrl,
-          'business_type': _selectedType, // Using the dropdown value
+          'business_type': _selectedType, // Selected from dropdown
           'status': 'pending',
           'role': 'business',
         });
       } else {
         await Supabase.instance.client.from('profiles').insert({
           'username': usernameController.text.trim(),
+          'name': fullNameController.text.trim(),
           'email': emailController.text.trim(),
           'password': passwordController.text.trim(),
           'role': 'user',
         });
       }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Registration Successful!"), backgroundColor: Colors.green),
+            const SnackBar(content: Text("Registration Successful!"), backgroundColor: Colors.green)
         );
         Navigator.pop(context);
       }
@@ -79,14 +93,13 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        width: double.infinity,
-        height: double.infinity,
+        width: double.infinity, height: double.infinity,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.blue.shade100, Colors.purple.shade50],
-          ),
+            gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.blue.shade100, Colors.purple.shade50]
+            )
         ),
         child: SafeArea(
           child: SingleChildScrollView(
@@ -94,20 +107,13 @@ class _RegisterPageState extends State<RegisterPage> {
             child: Column(
               children: [
                 const SizedBox(height: 20),
-                const Text(
-                  "Create Account",
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueAccent),
-                ),
+                const Text("Create Account", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
                 const SizedBox(height: 30),
 
-                // THE TOGGLE SWITCH
+                // User / Business Toggle Tab
                 Container(
                   width: 300, height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.blueAccent, width: 2),
-                  ),
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blueAccent, width: 2)),
                   child: Row(
                     children: [
                       _buildTab("User", !isBusiness),
@@ -115,26 +121,25 @@ class _RegisterPageState extends State<RegisterPage> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 25),
 
-                // FORM CARD
                 Container(
                   padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-                  ),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
                   child: Column(
                     children: [
+                      if (!isBusiness) ...[
+                        _input(usernameController, "Username", LucideIcons.user),
+                        const SizedBox(height: 15),
+                        _input(fullNameController, "Full Name", LucideIcons.contact),
+                        const SizedBox(height: 15),
+                      ],
                       _input(emailController, "Email", LucideIcons.mail),
                       const SizedBox(height: 15),
                       _input(passwordController, "Password", LucideIcons.lock, pass: true),
                       const SizedBox(height: 15),
-
-                      if (!isBusiness)
-                        _input(usernameController, "Username", LucideIcons.user),
+                      _input(confirmPasswordController, "Confirm Password", LucideIcons.checkCircle, pass: true),
+                      const SizedBox(height: 15),
 
                       if (isBusiness) ...[
                         _input(businessNameController, "Business Name", LucideIcons.store),
@@ -142,15 +147,13 @@ class _RegisterPageState extends State<RegisterPage> {
                         _input(regNoController, "SSM No", LucideIcons.fileText),
                         const SizedBox(height: 15),
 
-                        // RESTORED: Business Type Dropdown
+                        // Business Type Selection
                         DropdownButtonFormField<String>(
                           value: _selectedType,
                           decoration: InputDecoration(
-                            hintText: "Business Type",
-                            prefixIcon: const Icon(LucideIcons.list, color: Colors.blueAccent),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              prefixIcon: const Icon(LucideIcons.list, color: Colors.blueAccent),
+                              filled: true, fillColor: Colors.grey.shade50,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
                           ),
                           items: businessTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
                           onChanged: (val) => setState(() => _selectedType = val!),
@@ -161,52 +164,36 @@ class _RegisterPageState extends State<RegisterPage> {
                           onTap: _pickImage,
                           child: Container(
                             height: 120, width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.blue.shade100),
-                            ),
+                            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade100)),
                             child: _ssmFile == null
-                                ? const Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(LucideIcons.imagePlus, color: Colors.blueAccent),
-                                Text("Upload SSM Photo", style: TextStyle(color: Colors.blueAccent, fontSize: 12)),
-                              ],
-                            )
+                                ? const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.imagePlus, color: Colors.blueAccent), Text("Upload SSM Photo", style: TextStyle(color: Colors.blueAccent, fontSize: 12))])
                                 : ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(_ssmFile!, fit: BoxFit.cover)),
                           ),
                         ),
                       ],
 
-                      if (errorText.isNotEmpty)
-                        Padding(padding: const EdgeInsets.only(top: 15), child: Text(errorText, style: const TextStyle(color: Colors.red, fontSize: 12))),
-
+                      if (errorText.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 15), child: Text(errorText, style: const TextStyle(color: Colors.red, fontSize: 12))),
                       const SizedBox(height: 25),
 
                       SizedBox(
                         width: double.infinity, height: 55,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _register,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueAccent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent]),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(color: Colors.white)
-                              : const Text("REGISTER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _register,
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                            child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("REGISTER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-
-                // RESTORED: Back to Login button
                 const SizedBox(height: 20),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Already have an account? Login", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w600)),
-                ),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Already have an account? Login", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w600))),
                 const SizedBox(height: 20),
               ],
             ),
@@ -221,10 +208,7 @@ class _RegisterPageState extends State<RegisterPage> {
       child: GestureDetector(
         onTap: () => setState(() => isBusiness = (label == "Businesses")),
         child: Container(
-          decoration: BoxDecoration(
-            color: active ? Colors.white.withOpacity(0.7) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
+          decoration: BoxDecoration(color: active ? Colors.white.withOpacity(0.7) : Colors.transparent, borderRadius: BorderRadius.circular(8)),
           alignment: Alignment.center,
           child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         ),
@@ -236,11 +220,11 @@ class _RegisterPageState extends State<RegisterPage> {
     return TextField(
       controller: controller, obscureText: pass,
       decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.blueAccent),
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          hintText: hint,
+          prefixIcon: Icon(icon, color: Colors.blueAccent),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none)
       ),
     );
   }

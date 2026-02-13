@@ -98,3 +98,4 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
     );
   }
 }
+

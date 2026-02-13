@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'business_profile.dart'; // Ensure this matches your file name
 
 class BusinessMainNavigation extends StatefulWidget {
   final Map<String, dynamic> businessData;
@@ -10,85 +11,71 @@ class BusinessMainNavigation extends StatefulWidget {
 }
 
 class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 0; // Default to Profile
 
   @override
   Widget build(BuildContext context) {
-    bool isDesktop = MediaQuery.of(context).size.width > 800;
-
+    // Page list: Profile (0), Create Post (1), Chat (2)
     final List<Widget> pages = [
-      _buildHomeStats(), // Business Overview
-      const Center(child: Text("Manage Menu/Services")),
-      const Center(child: Text("Business Settings")),
+      BusinessProfilePage(businessData: widget.businessData), // Index 0
+      const Center(child: Text("Create Post Screen")),        // Index 1
+      const Center(child: Text("Chat Screen")),               // Index 2
     ];
 
     return Scaffold(
-      body: Row(
-        children: [
-          if (isDesktop)
-            NavigationRail(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-              extended: MediaQuery.of(context).size.width > 1000,
-              leading: CircleAvatar(
-                backgroundImage: NetworkImage(widget.businessData['ssm_url']),
+      body: pages[_selectedIndex],
+      bottomNavigationBar: BottomAppBar(
+        elevation: 10,
+        child: SizedBox(
+          height: 70,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              // 1. PROFILE ICON (Left)
+              IconButton(
+                icon: Icon(
+                  LucideIcons.user,
+                  size: 28,
+                  color: _selectedIndex == 0 ? Colors.blueAccent : Colors.grey,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 0),
               ),
-              destinations: const [
-                NavigationRailDestination(icon: Icon(LucideIcons.layoutDashboard), label: Text('Dashboard')),
-                NavigationRailDestination(icon: Icon(LucideIcons.list), label: Text('Services')),
-                NavigationRailDestination(icon: Icon(LucideIcons.settings), label: Text('Settings')),
-              ],
-            ),
-          const VerticalDivider(width: 1),
-          Expanded(child: pages[_selectedIndex]),
-        ],
-      ),
-      bottomNavigationBar: isDesktop ? null : BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (i) => setState(() => _selectedIndex = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(LucideIcons.layoutDashboard), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.list), label: 'Services'),
-          BottomNavigationBarItem(icon: Icon(LucideIcons.settings), label: 'Settings'),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildHomeStats() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade50, Colors.purple.shade50],
-        ),
-      ),
-      child: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Text(
-            "Welcome, ${widget.businessData['business_name']}!",
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              // 2. ADD BUTTON (Center)
+              GestureDetector(
+                onTap: () => setState(() => _selectedIndex = 1),
+                child: Container(
+                  height: 50,
+                  width: 50,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF8ECAFF), Colors.purpleAccent],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(LucideIcons.plus, color: Colors.white, size: 28),
+                ),
+              ),
+
+              // 3. CHAT ICON (Right)
+              IconButton(
+                icon: Icon(
+                  LucideIcons.messageSquare,
+                  size: 28,
+                  color: _selectedIndex == 2 ? Colors.blueAccent : Colors.grey,
+                ),
+                onPressed: () => setState(() => _selectedIndex = 2),
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          _buildFeatureCard(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Colors.purpleAccent]),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("Account Status: Approved", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          Text("You can now start managing your business profile.", style: TextStyle(color: Colors.white70)),
-        ],
+        ),
       ),
     );
   }

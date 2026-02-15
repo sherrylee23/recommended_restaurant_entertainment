@@ -48,7 +48,6 @@ class MyApp extends StatelessWidget {
 
 // 3. The Main Navigation Wrapper
 class MainNavigation extends StatefulWidget {
-  // Added userData to receive info from LoginPage
   final Map<String, dynamic> userData;
 
   const MainNavigation({super.key, required this.userData});
@@ -61,20 +60,22 @@ class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   late final StreamSubscription<AuthState> _authSubscription;
 
-  // Use late to initialize pages once widget data is available [cite: 7]
-  late final List<Widget> _pages;
+  // NEW: GlobalKey to reference the UserProfilePage state
+  final GlobalKey<UserProfilePageState> _profileKey = GlobalKey<UserProfilePageState>();
+
+  late List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
 
-    // Initialize the pages and pass the user data to the profile page
+    // Initialize the pages and pass the GlobalKey to UserProfilePage
     _pages = [
-      const DiscoverPage(),
+      DiscoverPage(currentUserData: widget.userData),
       const Center(child: Text('Location Screen')),
       const SizedBox.shrink(),
       const Center(child: Text('Chat Screen')),
-      UserProfilePage(userData: widget.userData),
+      UserProfilePage(key: _profileKey, userData: widget.userData),
     ];
 
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
@@ -96,39 +97,24 @@ class _MainNavigationState extends State<MainNavigation> {
     super.dispose();
   }
 
-  Future<void> _updateUserPassword(String newPassword) async {
-    try {
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
-
-      final String? userEmail = Supabase.instance.client.auth.currentUser?.email;
-      if (userEmail != null) {
-        await Supabase.instance.client
-            .from('profiles')
-            .update({'password': newPassword})
-            .eq('email', userEmail);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password updated successfully!"), backgroundColor: Colors.green),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Update failed: ${e.toString()}"), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  void _onItemTapped(int index) {
+  // MODIFIED: Updated navigation with async/await to handle the refresh
+// MODIFIED: Updated navigation to pass the numeric BigInt ID
+  void _onItemTapped(int index) async {
     if (index == 2) {
-      Navigator.push(
+      final result = await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => const CreatePostPage(),
+          builder: (context) => CreatePostPage(
+            // CHANGE THIS: Use 'id' (the bigint), NOT 'user_id' (the UUID)
+            profileUserId: widget.userData['id'].toString(),
+          ),
           fullscreenDialog: true,
         ),
       );
+
+      if (result == true) {
+        _profileKey.currentState?.refreshPosts();
+      }
     } else {
       setState(() {
         _selectedIndex = index;

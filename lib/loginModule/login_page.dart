@@ -21,6 +21,8 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController passwordController = TextEditingController();
   bool _isLoading = false;
   bool isBusiness = false;
+  // NEW: Tracks if password is hidden or visible
+  bool _obscurePassword = true;
   String errorText = "";
 
   void _showAdminLoginDialog() {
@@ -133,12 +135,12 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 20),
                             _buildTextField(controller: emailController, hint: isBusiness ? "Business Email" : "Username or Email", icon: isBusiness ? LucideIcons.briefcase : LucideIcons.user),
                             const SizedBox(height: 15),
+                            // Updated password field to use isPassword: true
                             _buildTextField(controller: passwordController, hint: "Password", icon: LucideIcons.lock, isPassword: true),
                             Align(alignment: Alignment.centerRight, child: TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordPage())), child: const Text("Forgot password?", style: TextStyle(color: Colors.blueAccent, fontSize: 13)))),
                             if (errorText.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(errorText, style: const TextStyle(color: Colors.red, fontSize: 12))),
                             const SizedBox(height: 10),
 
-                            // RESTORED ORIGINAL GRADIENT BUTTON
                             SizedBox(
                               width: double.infinity, height: 50,
                               child: Container(
@@ -197,10 +199,46 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, bool isPassword = false}) {
+  // MODIFIED Helper Method to include suffixIcon logic
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool isPassword = false,
+  }) {
     return TextField(
-      controller: controller, obscureText: isPassword,
-      decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, color: Colors.blueAccent), filled: true, fillColor: Colors.grey.shade50, enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.blue.shade100)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.blueAccent))),
+      controller: controller,
+      // Uses the state variable for the password field
+      obscureText: isPassword ? _obscurePassword : false,
+      decoration: InputDecoration(
+        hintText: hint,
+        prefixIcon: Icon(icon, color: Colors.blueAccent),
+        // Added the eye toggle icon for password fields
+        suffixIcon: isPassword
+            ? IconButton(
+          icon: Icon(
+            _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+            color: Colors.grey,
+            size: 20,
+          ),
+          onPressed: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+        )
+            : null,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.blue.shade100),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.blueAccent),
+        ),
+      ),
     );
   }
 }

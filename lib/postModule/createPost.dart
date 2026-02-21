@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class CreatePostPage extends StatefulWidget {
-  const CreatePostPage({super.key});
+  final String profileUserId;
+
+  const CreatePostPage({super.key, required this.profileUserId});
 
   @override
   State<CreatePostPage> createState() => _CreatePostPageState();
@@ -14,12 +18,15 @@ class _CreatePostPageState extends State<CreatePostPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _customCategoryController = TextEditingController();
 
   final List<File> _selectedMedia = [];
   double _rating = 0;
-  bool _isOtherSelected = false;
+  bool _isUploading = false;
   final List<String> _selectedCategories = [];
+
+  List<Map<String, dynamic>> _locationResults = [];
+  String? _selectedLocationName;
+  String? _userName;
 
   final List<String> _categories = [
     'Restaurant', 'Cafe', 'Bar', 'Street Food',
@@ -27,282 +34,222 @@ class _CreatePostPageState extends State<CreatePostPage> {
     'Other'
   ];
 
-  // 1. Updated for Multi-Photo Selection
-  Future<void> _pickMedia() async {
-    final ImagePicker picker = ImagePicker();
-    // pickMultiImage allows selecting multiple photos at once from Drive/Gallery
-    final List<XFile> images = await picker.pickMultiImage();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchUserInfo();
+    });
+    _titleController.addListener(() => setState(() {}));
+  }
 
-    if (images.isNotEmpty) {
-      setState(() {
-        for (var image in images) {
-          // Maintaining the 9-photo limit for your Smart Lifestyle app
-          if (_selectedMedia.length < 9) {
-            _selectedMedia.add(File(image.path));
-          }
-        }
-      });
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    super.dispose();
+  }
 
-      if (_selectedMedia.length >= 9 && images.length > (_selectedMedia.length - images.length)) {
-        _showSnackBar("Maximum 9 photos allowed", Colors.orange);
+  int _getWordCount(String text) {
+    if (text.trim().isEmpty) return 0;
+    return text.trim().split(RegExp(r'\s+')).length;
+  }
+
+  bool _isFormValid() {
+    return _selectedMedia.isNotEmpty &&
+        _titleController.text.isNotEmpty &&
+        _selectedLocationName != null &&
+        _selectedCategories.isNotEmpty &&
+        _rating > 0;
+  }
+
+  Future<void> _fetchUserInfo() async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user != null) {
+      try {
+        final data = await supabase.from('profiles').select('name').eq('user_id', user.id).single();
+        if (mounted) setState(() => _userName = data['name']);
+      } catch (e) {
+        if (mounted) setState(() => _userName = user.email?.split('@')[0]);
       }
     }
   }
 
-  void _showSnackBar(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
-    );
+  Future<void> _searchLocations(String query) async {
+    if (query.isEmpty) { setState(() => _locationResults = []); return; }
+    try {
+      final data = await Supabase.instance.client.from('locations').select('name, address, area').ilike('name', '%$query%').limit(5);
+      setState(() => _locationResults = List<Map<String, dynamic>>.from(data));
+    } catch (e) { debugPrint("Search error: $e"); }
+  }
+
+  Future<void> _handlePostSubmission() async {
+    FocusScope.of(context).unfocus();
+    if (!_isFormValid()) return;
+
+    final supabase = Supabase.instance.client;
+    final int? currentProfileId = int.tryParse(widget.profileUserId);
+
+    if (currentProfileId == null) {
+      _showSnackBar("Error: Invalid Profile ID. Please re-login.", Colors.red);
+      return;
+    }
+
+    setState(() => _isUploading = true);
+
+    try {
+      List<String> mediaUrls = [];
+      for (var i = 0; i < _selectedMedia.length; i++) {
+        final file = _selectedMedia[i];
+        final path = 'posts/$currentProfileId/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+        await supabase.storage.from('post_media').upload(path, file);
+        mediaUrls.add(supabase.storage.from('post_media').getPublicUrl(path));
+      }
+
+      await supabase.from('posts').insert({
+        'profile_id': currentProfileId,
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'location_name': _selectedLocationName,
+        'rating': _rating,
+        'category_names': _selectedCategories,
+        'media_urls': mediaUrls,
+      });
+
+      if (mounted) {
+        _showSnackBar("Post shared successfully!", Colors.green);
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      _showSnackBar("Submission Error: $e", Colors.red);
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  void _showSnackBar(String m, Color c) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: c));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(LucideIcons.chevronLeft, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text("Create New Post", style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [Colors.blue.shade100, Colors.purple.shade50]),
+    final int currentWordCount = _getWordCount(_titleController.text);
+    final bool canSubmit = _isFormValid();
+
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            leading: IconButton(icon: const Icon(LucideIcons.chevronLeft), onPressed: () => Navigator.pop(context)),
+            title: const Text("Create New Post", style: TextStyle(fontWeight: FontWeight.bold)),
+            centerTitle: true,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_userName != null)
+                  Padding(padding: const EdgeInsets.only(bottom: 20, left: 4), child: Text("Posting as: $_userName", style: TextStyle(color: Colors.blueAccent.shade700, fontWeight: FontWeight.bold))),
+
+                if (_selectedMedia.isNotEmpty) _buildMediaStrip(),
+                _buildMediaPicker(),
+                const SizedBox(height: 25),
+
+                // --- TITLE ---
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [_buildLabel("Title *"), Text("$currentWordCount/5 words", style: TextStyle(fontSize: 12, color: currentWordCount > 5 ? Colors.red : Colors.grey, fontWeight: FontWeight.bold))]),
+                TextField(
+                  controller: _titleController,
+                  inputFormatters: [TextInputFormatter.withFunction((old, val) => _getWordCount(val.text) > 5 ? old : val)],
+                  decoration: InputDecoration(hintText: "Title...", filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+                ),
+                const SizedBox(height: 15),
+
+                _buildLabel("Description (Optional)"),
+                _buildTextField(_descriptionController, "Describe more...", maxLines: 3),
+                const SizedBox(height: 15),
+
+                _buildLabel("Location *"),
+                _buildLocationSearch(),
+                const SizedBox(height: 15),
+
+                _buildLabel("Categories *"),
+                _buildCategoryChips(),
+                const SizedBox(height: 25),
+
+                _buildLabel("Rating *"),
+                _buildStarRating(),
+                const SizedBox(height: 30),
+
+                // --- SUBMIT BUTTON ---
+                Container(
+                  width: double.infinity,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    // Use grey gradient if uploading or form is invalid
+                    gradient: (canSubmit && !_isUploading)
+                        ? const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent])
+                        : LinearGradient(colors: [Colors.grey.shade300, Colors.grey.shade400]),
+                  ),
+                  child: ElevatedButton(
+                    onPressed: (canSubmit && !_isUploading) ? _handlePostSubmission : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    // MODIFIED: Show text only, no loading icon here
+                    child: Text(
+                      _isUploading ? "UPLOADING..." : "POST NOW",
+                      style: TextStyle(
+                        color: (canSubmit && !_isUploading) ? Colors.white : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 2. Horizontal Preview List (Fixed Preview Issue)
-            if (_selectedMedia.isNotEmpty)
-              Container(
-                height: 110,
-                margin: const EdgeInsets.only(bottom: 20),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _selectedMedia.length,
-                  itemBuilder: (context, index) {
-                    final file = _selectedMedia[index];
-
-                    return Container(
-                      width: 100,
-                      margin: const EdgeInsets.only(right: 12),
-                      child: Stack(
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              // Navigates to swipeable gallery
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => GalleryPreview(
-                                      files: _selectedMedia,
-                                      initialIndex: index
-                                  ),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              height: 100,
-                              width: 100,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(10),
-                                color: Colors.black12,
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Image.file(
-                                  file,
-                                  fit: BoxFit.cover,
-                                  // Handles potential Google Drive sync lag
-                                  errorBuilder: (context, error, stackTrace) => const Center(
-                                    child: Icon(Icons.broken_image, color: Colors.grey),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: GestureDetector(
-                              onTap: () => setState(() => _selectedMedia.removeAt(index)),
-                              child: const CircleAvatar(
-                                radius: 10,
-                                backgroundColor: Colors.red,
-                                child: Icon(Icons.close, size: 14, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-            _mediaPicker(LucideIcons.image, "Add Photos", _pickMedia),
-            const Text("\nMaximum 9 photos", style: TextStyle(fontSize: 12, color: Colors.grey)),
-
-            const SizedBox(height: 25),
-            _buildLabel("Title"),
-            _buildTextField(_titleController, "Give your post a title..."),
-
-            const SizedBox(height: 15),
-            _buildLabel("Description"),
-            _buildTextField(_descriptionController, "Tell us more about your experience...", maxLines: 4),
-
-            const SizedBox(height: 15),
-            _buildLabel("Location"),
-            _buildTextField(_locationController, "Where was this?", icon: LucideIcons.mapPin),
-
-            const SizedBox(height: 15),
-            _buildLabel("Select Categories"),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 4.0,
-              children: _categories.map((category) {
-                final isSelected = _selectedCategories.contains(category);
-                return FilterChip(
-                  label: Text(category),
-                  selected: isSelected,
-                  selectedColor: Colors.blue.shade200,
-                  onSelected: (bool selected) {
-                    setState(() {
-                      if (selected) {
-                        _selectedCategories.add(category);
-                        if (category == 'Other') _isOtherSelected = true;
-                      } else {
-                        _selectedCategories.remove(category);
-                        if (category == 'Other') {
-                          _isOtherSelected = false;
-                          _customCategoryController.clear();
-                        }
-                      }
-                    });
-                  },
-                );
-              }).toList(),
+        // PRIMARY LOADING OVERLAY
+        if (_isUploading)
+          Container(
+            color: Colors.black45, // Slightly darker for focus
+            child: const Center(
+              child: CircularProgressIndicator(color: Colors.white),
             ),
-            if (_isOtherSelected)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: _buildTextField(_customCategoryController, "Enter custom category...", icon: LucideIcons.plusCircle),
-              ),
-
-            const SizedBox(height: 25),
-            _buildLabel("Rating"),
-            Row(
-              children: List.generate(5, (index) {
-                return IconButton(
-                  onPressed: () => setState(() => _rating = index + 1.0),
-                  icon: Icon(index < _rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 32),
-                );
-              }),
-            ),
-
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent]),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ElevatedButton(
-                  onPressed: () {
-                    _showSnackBar("Uploading ${ _selectedMedia.length } items...", Colors.green);
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
-                  child: const Text("POST NOW", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 
-  Widget _mediaPicker(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 80,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.blue.shade200),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.blueAccent, size: 28),
-            const SizedBox(width: 12),
-            Text(label, style: const TextStyle(fontSize: 16, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text) {
-    return Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
-  }
-
-  Widget _buildTextField(TextEditingController controller, String hint, {int maxLines = 1, IconData? icon}) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: icon != null ? Icon(icon, color: Colors.blueAccent, size: 20) : null,
-        filled: true,
-        fillColor: Colors.grey.shade50,
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: Colors.blue.shade100)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.blueAccent)),
-      ),
-    );
-  }
+  // --- UI Helpers ---
+  Widget _buildMediaStrip() => Container(height: 110, margin: const EdgeInsets.only(bottom: 20), child: ListView.builder(scrollDirection: Axis.horizontal, itemCount: _selectedMedia.length, itemBuilder: (context, index) => Container(width: 100, margin: const EdgeInsets.only(right: 12), child: Stack(children: [GestureDetector(onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ImageGalleryViewer(images: _selectedMedia, initialIndex: index, onDelete: (i) => setState(() => _selectedMedia.removeAt(i))))), child: Hero(tag: 'photo_$index', child: ClipRRect(borderRadius: BorderRadius.circular(10), child: Image.file(_selectedMedia[index], width: 100, height: 100, fit: BoxFit.cover)))), Positioned(top: 2, right: 2, child: GestureDetector(onTap: () => setState(() => _selectedMedia.removeAt(index)), child: const CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Icon(Icons.close, size: 14, color: Colors.white))))]))));
+  Widget _buildLocationSearch() => Column(children: [TextField(controller: _locationController, onChanged: _searchLocations, decoration: InputDecoration(hintText: _selectedLocationName ?? "Search KL/Selangor...", prefixIcon: const Icon(LucideIcons.mapPin), filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))), if (_locationResults.isNotEmpty && _selectedLocationName == null) Container(margin: const EdgeInsets.only(top: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)]), child: Column(children: _locationResults.map((loc) => ListTile(title: Text(loc['name'], style: const TextStyle(fontWeight: FontWeight.bold)), subtitle: Text("${loc['area']} • ${loc['address']}", maxLines: 1), onTap: () { setState(() { _selectedLocationName = loc['name']; _locationResults = []; _locationController.text = loc['name']; }); })).toList()))]);
+  Widget _buildMediaPicker() => GestureDetector(onTap: () async { final i = await ImagePicker().pickMultiImage(); if (i.isNotEmpty) setState(() { for (var x in i) { if (_selectedMedia.length < 9) _selectedMedia.add(File(x.path)); } }); }, child: Container(height: 70, decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(15)), child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.image), SizedBox(width: 10), Text("Add Photos *")])));
+  Widget _buildCategoryChips() => Wrap(spacing: 8, children: _categories.map((c) => FilterChip(label: Text(c), selected: _selectedCategories.contains(c), onSelected: (s) => setState(() => s ? _selectedCategories.add(c) : _selectedCategories.remove(c)))).toList());
+  Widget _buildStarRating() => Row(children: List.generate(5, (i) => IconButton(icon: Icon(i < _rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 32), onPressed: () => setState(() => _rating = i + 1.0))));
+  Widget _buildLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)));
+  Widget _buildTextField(TextEditingController c, String h, {int maxLines = 1}) => TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(hintText: h, filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))));
 }
 
-// 3. Swipeable Full-Screen Gallery Widget
-class GalleryPreview extends StatelessWidget {
-  final List<File> files;
+// FULL-SCREEN GALLERY VIEWER
+class ImageGalleryViewer extends StatefulWidget {
+  final List<File> images;
   final int initialIndex;
-  const GalleryPreview({super.key, required this.files, required this.initialIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
-      body: PageView.builder(
-        // Controller enables starting the gallery at the tapped image
-        controller: PageController(initialPage: initialIndex),
-        itemCount: files.length,
-        itemBuilder: (context, index) {
-          return Center(
-            child: InteractiveViewer(
-              child: Image.file(
-                files[index],
-                errorBuilder: (context, error, stackTrace) => const Center(
-                  child: Text("Image not ready", style: TextStyle(color: Colors.white)),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+  final Function(int) onDelete;
+  const ImageGalleryViewer({super.key, required this.images, required this.initialIndex, required this.onDelete});
+  @override State<ImageGalleryViewer> createState() => _ImageGalleryViewerState();
+}
+class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+  @override void initState() { super.initState(); _currentIndex = widget.initialIndex; _pageController = PageController(initialPage: widget.initialIndex); }
+  @override Widget build(BuildContext context) { return Scaffold(backgroundColor: Colors.black, appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white), title: Text("${_currentIndex + 1} / ${widget.images.length}", style: const TextStyle(color: Colors.white)), actions: [IconButton(icon: const Icon(LucideIcons.trash2, color: Colors.redAccent), onPressed: () { widget.onDelete(_currentIndex); if (widget.images.length <= 1) Navigator.pop(context); else setState(() { if (_currentIndex >= widget.images.length) _currentIndex = widget.images.length - 1; }); })]), body: PageView.builder(controller: _pageController, itemCount: widget.images.length, onPageChanged: (i) => setState(() => _currentIndex = i), itemBuilder: (context, index) => Center(child: Hero(tag: 'photo_$index', child: InteractiveViewer(child: Image.file(widget.images[index], fit: BoxFit.contain)))))); }
 }

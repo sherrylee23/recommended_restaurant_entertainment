@@ -1,70 +1,75 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:image_picker/image_picker.dart';
 
 class FeedbackPage extends StatefulWidget {
-  const FeedbackPage({super.key});
+  final Map<String, dynamic> userData;
+
+  const FeedbackPage({super.key, required this.userData});
 
   @override
   State<FeedbackPage> createState() => _FeedbackPageState();
 }
 
 class _FeedbackPageState extends State<FeedbackPage> {
-  final TextEditingController _feedbackController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
   int _rating = 0;
-  bool _isLoading = false; // Added to handle loading state
+  File? _imageFile;
+  bool _isUploading = false;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  /// Handles the submission logic to Supabase
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() => _imageFile = File(pickedFile.path));
+    }
+  }
+
   Future<void> _submitFeedback() async {
-    final description = _feedbackController.text.trim();
-
-    // 1. Validation
-    if (description.isEmpty) {
-      _showSnackBar("Please describe your issue or suggestion.");
-      return;
-    }
-    if (_rating == 0) {
-      _showSnackBar("Please provide a star rating.");
+    if (_descriptionController.text.trim().isEmpty || _rating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please provide a rating and description")),
+      );
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() => _isUploading = true);
 
     try {
-      // 2. Insert data into Supabase table 'feedback'
-      await Supabase.instance.client.from('feedback').insert({
-        'description': description,
+      String? imageUrl;
+      final profileId = widget.userData['id']; // Numeric BigInt ID
+
+      if (_imageFile != null) {
+        final fileName = 'fb_${profileId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        await _supabase.storage.from('feedback_images').upload(fileName, _imageFile!);
+        imageUrl = _supabase.storage.from('feedback_images').getPublicUrl(fileName);
+      }
+
+      await _supabase.from('feedbacks').insert({
+        'profile_id': profileId,
+        'description': _descriptionController.text.trim(),
+        'image_url': imageUrl,
         'rating': _rating,
-        // 'image_url': null, // Logic for images can be added later
       });
 
       if (mounted) {
-        _showSnackBar("Feedback submitted successfully!", isError: false);
-        Navigator.pop(context); // Go back after success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Thank you for your feedback!")),
+        );
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        _showSnackBar("Error: ${e.toString()}");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: ${e.toString()}"), backgroundColor: Colors.red),
+        );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isUploading = false);
     }
-  }
-
-  void _showSnackBar(String message, {bool isError = true}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _feedbackController.dispose();
-    super.dispose();
   }
 
   @override
@@ -72,14 +77,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          "Feedback",
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-        ),
+        title: const Text("Feedback", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -90,138 +88,73 @@ class _FeedbackPageState extends State<FeedbackPage> {
           gradient: LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
-            colors: [
-              Colors.blue.shade100,
-              Colors.purple.shade50,
-            ],
+            colors: [Colors.blue.shade100, Colors.purple.shade50],
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. Feedback Description Section
-                _buildSectionLabel("Feedback Description"),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: TextField(
-                    controller: _feedbackController,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      hintText: "Describe your issue or suggestion in detail",
-                      border: InputBorder.none,
-                      hintStyle: TextStyle(fontSize: 14, color: Colors.grey),
+                const Text("Rate your experience", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                Row(
+                  children: List.generate(5, (index) => IconButton(
+                    icon: Icon(
+                      index < _rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 35,
                     ),
+                    onPressed: () => setState(() => _rating = index + 1),
+                  )),
+                ),
+                const SizedBox(height: 25),
+                const Text("Description", style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _descriptionController,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: "What can we improve?",
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.9),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
                 ),
-                const SizedBox(height: 20),
-
-                // 2. Photos and Videos Section
-                _buildSectionLabel("Photos and Videos"),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: GestureDetector(
-                      onTap: () {
-                        // Logic to pick photos/videos will go here
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.add_photo_alternate_outlined,
-                          size: 30,
-                          color: Colors.black87,
-                        ),
-                      ),
+                const SizedBox(height: 25),
+                const Text("Attach Image", style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    height: 150,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // 3. Rating Section
-                _buildSectionLabel("Rating"),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (index) {
-                      return IconButton(
-                        icon: Icon(
-                          index < _rating ? Icons.star : Icons.star_border,
-                          color: index < _rating ? Colors.amber : Colors.grey,
-                          size: 40,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _rating = index + 1;
-                          });
-                        },
-                      );
-                    }),
+                    child: _imageFile != null
+                        ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(_imageFile!, fit: BoxFit.cover))
+                        : const Icon(LucideIcons.imagePlus, color: Colors.blueAccent, size: 40),
                   ),
                 ),
                 const SizedBox(height: 40),
-
-                // 4. Submit Button
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: Container(
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF8ECAFF),
-                          Color(0xFF4A90E2),
-                          Colors.purpleAccent,
-                        ],
-                      ),
+                      gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent]),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _submitFeedback,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2),
-                      )
-                          : const Text(
-                        "Submit Feedback",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                      onPressed: _isUploading ? null : _submitFeedback,
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
+                      child: _isUploading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text("SUBMIT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
@@ -229,16 +162,6 @@ class _FeedbackPageState extends State<FeedbackPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildSectionLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(
-        label,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
       ),
     );
   }

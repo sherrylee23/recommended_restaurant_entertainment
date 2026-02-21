@@ -5,7 +5,8 @@ import 'package:recommended_restaurant_entertainment/customer_service/chatbot.da
 // import 'package:recommended_restaurant_entertainment/userModule/chat_nomi_page.dart';
 
 class HelpCenterPage extends StatelessWidget {
-  const HelpCenterPage({super.key});
+  final Map<String, dynamic> userData;
+  const HelpCenterPage({super.key, required this.userData});
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +67,7 @@ class HelpCenterPage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const FeedbackPage(),
+                          builder: (context) => FeedbackPage(userData: userData),
                         ),
                       );
                     },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart'; // Add this package to pubspec.yaml
 
 class AdminApprovalList extends StatefulWidget {
   final Map<String, dynamic> adminData;
@@ -19,6 +20,18 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
     _fetchPending();
   }
 
+  // Function to open the SSM URL in a browser
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not open SSM document")),
+        );
+      }
+    }
+  }
+
   Future<void> _fetchPending() async {
     try {
       final data = await Supabase.instance.client
@@ -36,12 +49,9 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
 
   Future<void> _processRequest(String id, String status) async {
     try {
-      // Print admin ID to console to verify it exists
-      debugPrint("Processing ID: $id with Admin: ${widget.adminData['id']}");
-
       await Supabase.instance.client.from('business_profiles').update({
         'status': status,
-        'approved_by': widget.adminData['id'], // Requires the SQL column added in Step 1
+        'approved_by': widget.adminData['id'],
       }).eq('id', id);
 
       if (mounted) {
@@ -49,11 +59,8 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
           SnackBar(content: Text("Business $status"), backgroundColor: Colors.green),
         );
       }
-
-      // Refresh list to remove the card
       _fetchPending();
     } catch (e) {
-      // This will now show you the error if the column is still missing
       debugPrint("Update error detail: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,22 +80,53 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
       itemCount: _pendingList.length,
       itemBuilder: (context, index) {
         final item = _pendingList[index];
+        final ssmUrl = item['ssm_url']; // Assuming column name is 'ssm_url'
+
         return Card(
-          child: ListTile(
-            title: Text(item['business_name']),
-            subtitle: Text("SSM: ${item['register_no']}"),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
+          margin: const EdgeInsets.only(bottom: 15),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ElevatedButton(
-                  onPressed: () => _processRequest(item['id'].toString(), 'approved'),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text("Approve", style: TextStyle(color: Colors.white)),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(item['business_name'],
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("SSM No: ${item['register_no']}"),
+                      const SizedBox(height: 8),
+                      // VIEW SSM BUTTON
+                      if (ssmUrl != null && ssmUrl.toString().isNotEmpty)
+                        ActionChip(
+                          avatar: const Icon(Icons.description, size: 16),
+                          label: const Text("View SSM Document"),
+                          onPressed: () => _launchURL(ssmUrl),
+                        )
+                      else
+                        const Text("No SSM document uploaded",
+                            style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton(
-                  onPressed: () => _processRequest(item['id'].toString(), 'rejected'),
-                  child: const Text("Reject", style: TextStyle(color: Colors.red)),
+                const Divider(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => _processRequest(item['id'].toString(), 'rejected'),
+                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                      child: const Text("Reject", style: TextStyle(color: Colors.red)),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () => _processRequest(item['id'].toString(), 'approved'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                      child: const Text("Approve", style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -98,4 +136,3 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
     );
   }
 }
-

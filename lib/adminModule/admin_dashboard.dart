@@ -28,7 +28,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _adminPages = [
       AdminApprovalList(adminData: widget.adminData),
       const AdminStatsPage(),
-      const AdminFeedbackList(),
+      const AdminFeedbackListPage(),
     ];
   }
 

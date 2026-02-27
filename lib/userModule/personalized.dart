@@ -11,57 +11,117 @@ class PersonalizedPage extends StatefulWidget {
 }
 
 class _PersonalizedPageState extends State<PersonalizedPage> {
-  final List<String> _allCategories = [
-    'Restaurant', 'Cafe', 'Bar', 'Street Food', 'Cinema',
-    'Karaoke', 'Theme Park', 'Shopping', 'Live Music', 'Gaming'
-  ];
-
-  List<String> _manualInterests = [];
   Map<String, int> _analysisData = {};
-  bool _isSaving = false;
+  bool _isInitialLoading = true;
 
   @override
   void initState() {
     super.initState();
-    // 1. Load existing manual adjustments from the Array column
-    _manualInterests = List<String>.from(widget.userData['interests'] ?? []);
-
-    // 2. Load analysis data from the JSONB column
-    final rawAnalysis = widget.userData['interest_analysis'] as Map<String, dynamic>? ?? {};
-    _analysisData = rawAnalysis.map((key, value) => MapEntry(key, value as int));
+    // Fetch fresh data from Supabase to ensure the AI analysis is accurate
+    _loadFreshAnalysis();
   }
 
-  Future<void> _savePreferences() async {
-    setState(() => _isSaving = true);
+  Future<void> _loadFreshAnalysis() async {
     try {
-      // Updates the manual interests column in Supabase
-      await Supabase.instance.client
+      final response = await Supabase.instance.client
           .from('profiles')
-          .update({'interests': _manualInterests})
-          .eq('id', widget.userData['id']);
+          .select('interest_analysis')
+          .eq('id', widget.userData['id'])
+          .single();
 
       if (mounted) {
-        // Return the updated list to the Profile page to update local state
-        Navigator.pop(context, _manualInterests);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Preferences updated successfully!")),
-        );
+        setState(() {
+          final rawAnalysis = response['interest_analysis'] as Map<String, dynamic>? ?? {};
+          // Map raw JSON data to a typed integer map
+          _analysisData = rawAnalysis.map((key, value) => MapEntry(key, value as int));
+          _isInitialLoading = false;
+        });
       }
     } catch (e) {
-      debugPrint("Error saving interests: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to save preferences"), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+      debugPrint("Error loading fresh analysis: $e");
+      if (mounted) setState(() => _isInitialLoading = false);
     }
+  }
+
+  Widget _buildPercentageAnalysis(List<MapEntry<String, int>> sortedData) {
+    // Filter out items with 0 views to show meaningful AI insights
+    final activeData = sortedData.where((e) => e.value > 0).toList();
+    final int totalViews = activeData.fold(0, (sum, entry) => sum + entry.value);
+
+    if (totalViews == 0) {
+      return Container(
+        padding: const EdgeInsets.all(30),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: const Center(
+          child: Text(
+            "No browsing history found yet.\nKeep exploring to build your AI profile!",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.blue.shade50),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: activeData.take(8).map((entry) {
+          final double percentage = (entry.value / totalViews) * 100;
+          return _buildInterestRow(entry.key, percentage);
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildInterestRow(String label, double percentage) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(
+                "${percentage.toStringAsFixed(1)}%",
+                style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: percentage / 100,
+              backgroundColor: Colors.grey.shade100,
+              color: Colors.blueAccent,
+              minHeight: 8,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Sort analysis categories by highest view count for the UI
+    // Sort the list so the most frequent interests appear at the top
     final sortedAnalysis = _analysisData.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -75,126 +135,27 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-            "AI Personalization",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+          "Personalization",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
+      body: _isInitialLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECTION 1: AI ANALYSIS ---
-            _buildSectionHeader("AI Analysis", "Categories you view most often"),
-            const SizedBox(height: 16),
-            if (sortedAnalysis.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Text(
-                    "No browsing history yet. Start exploring to see your analysis!",
-                    style: TextStyle(color: Colors.grey, fontSize: 14)
-                ),
-              )
-            else
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade50, Colors.white],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
-                child: Column(
-                  children: sortedAnalysis.take(3).map((entry) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        children: [
-                          const Icon(LucideIcons.activity, size: 18, color: Colors.blueAccent),
-                          const SizedBox(width: 12),
-                          Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                                "${entry.value} views",
-                                style: const TextStyle(color: Colors.blueAccent, fontSize: 12, fontWeight: FontWeight.w600)
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-
-            const SizedBox(height: 40),
-
-            // --- SECTION 2: MANUAL ADJUSTMENT ---
-            _buildSectionHeader("Manual Adjustment", "Select categories you want to prioritize"),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _allCategories.map((cat) {
-                final isSelected = _manualInterests.contains(cat);
-                return FilterChip(
-                  label: Text(cat),
-                  selected: isSelected,
-                  onSelected: (val) {
-                    setState(() {
-                      val ? _manualInterests.add(cat) : _manualInterests.remove(cat);
-                    });
-                  },
-                  selectedColor: Colors.blueAccent.withOpacity(0.1),
-                  checkmarkColor: Colors.blueAccent,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.blueAccent : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  backgroundColor: Colors.grey.shade50,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: isSelected ? Colors.blueAccent : Colors.grey.shade300),
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 50),
-
-            // --- SAVE BUTTON ---
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent]),
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [
-                    BoxShadow(color: Colors.blueAccent.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
-                  ],
-                ),
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _savePreferences,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text("APPLY AI SETTINGS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
+            _buildSectionHeader("Interest Profile",
+                "This analysis is automatically generated based on your real-time browsing behavior."),
+            const SizedBox(height: 20),
+            _buildPercentageAnalysis(sortedAnalysis),
+            const SizedBox(height: 30),
+            const Center(
+              child: Text(
+                "The more you interact, the more accurate your feed becomes.",
+                style: TextStyle(color: Colors.black38, fontSize: 12, fontStyle: FontStyle.italic),
               ),
             ),
           ],
@@ -208,8 +169,8 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
-        const SizedBox(height: 4),
-        Text(sub, style: const TextStyle(fontSize: 14, color: Colors.black45)),
+        const SizedBox(height: 6),
+        Text(sub, style: const TextStyle(fontSize: 14, color: Colors.black45, height: 1.4)),
       ],
     );
   }

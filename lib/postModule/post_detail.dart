@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recommended_restaurant_entertainment/postModule/edit_post.dart';
+import 'package:recommended_restaurant_entertainment/reportModule/report.dart';
 
 class PostDetailPage extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -24,7 +25,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
   int _currentPage = 0;
   bool _isLiked = false;
   int _totalLikes = 0;
-  bool _isLikeLoading = false;
 
   @override
   void initState() {
@@ -45,15 +45,14 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Future<void> _recordViewForAI() async {
     if (widget.viewerProfileId == null) return;
     final List<dynamic> categories = _currentPost['category_names'] ?? [];
-    if (categories.isEmpty) return;
     try {
       final supabase = Supabase.instance.client;
       await supabase.rpc('increment_interest_counts', params: {
-        'user_id': widget.viewerProfileId,
+        'p_user_id': widget.viewerProfileId,
         'categories': categories,
       });
     } catch (e) {
-      debugPrint("Failed to update AI history: $e");
+      debugPrint("AI Record Error: $e");
     }
   }
 
@@ -63,6 +62,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
       final supabase = Supabase.instance.client;
       final postId = _currentPost['id'];
       final countRes = await supabase.from('likes').select('*').eq('post_id', postId).count(CountOption.exact);
+
       bool userHasLiked = false;
       if (widget.viewerProfileId != null) {
         final existingLike = await supabase.from('likes').select().eq('post_id', postId).eq('profile_id', widget.viewerProfileId).maybeSingle();
@@ -135,12 +135,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine if the viewer is the owner of the post
     final dynamic postOwnerId = _currentPost['profile_id'];
-    final bool isOwner = widget.viewerProfileId != null && postOwnerId != null && widget.viewerProfileId.toString() == postOwnerId.toString();
+    final bool isOwner = widget.viewerProfileId != null &&
+        postOwnerId != null &&
+        widget.viewerProfileId.toString() == postOwnerId.toString();
+
     final List<dynamic> mediaUrls = _currentPost['media_urls'] ?? [];
     final int rating = (_currentPost['rating'] ?? 0).toInt();
 
-    // MODIFIED: Robust profile picture extraction
     final String? authorPicture = _currentPost['profiles'] != null
         ? _currentPost['profiles']['profile_url']
         : _currentPost['profile_url'];
@@ -164,7 +167,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87, size: 22),
-        // MODIFIED: User profile picture and name directly beside back button
         title: Row(
           children: [
             CircleAvatar(
@@ -185,13 +187,48 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ],
         ),
         actions: [
+          // MODIFIED: Report Button - Only shows if the user is NOT the owner
+          if (!isOwner)
+            IconButton(
+              icon: const Icon(Icons.report_problem_outlined, color: Colors.redAccent),
+              tooltip: 'Report Post',
+              onPressed: () {
+                if (widget.viewerProfileId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Please log in to report content")),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReportPage(
+                      post: _currentPost,
+                      viewerProfileId: widget.viewerProfileId,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          // Three-dot menu for Edit/Delete - Only shows for the owner
           if (isOwner)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.black87),
-              onSelected: (value) { if (value == 'edit') _navigateToEdit(); else if (value == 'delete') _showDeleteConfirmation(); },
+              onSelected: (value) {
+                if (value == 'edit') _navigateToEdit();
+                else if (value == 'delete') _showDeleteConfirmation();
+              },
               itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 10), Text("Edit Post")])),
-                const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: Colors.redAccent), SizedBox(width: 10), Text("Delete Post", style: TextStyle(color: Colors.redAccent))])),
+                const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 10), Text("Edit Post")])
+                ),
+                const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(children: [Icon(Icons.delete_outline, size: 20, color: Colors.redAccent), SizedBox(width: 10), Text("Delete Post", style: TextStyle(color: Colors.redAccent))])
+                ),
               ],
             ),
         ],

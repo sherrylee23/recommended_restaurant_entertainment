@@ -24,85 +24,81 @@ class _DiscoverPageState extends State<DiscoverPage> {
     _fetchPersonalizedAiFeed();
   }
 
-  Future<void> _fetchPersonalizedAiFeed() async {
+  Future<void> _fetchStandardFeed() async {
     try {
       final supabase = Supabase.instance.client;
-      final currentUserId = widget.currentUserData['id']; // Get current user ID
-
-      final List<String> interests = List<String>.from(widget.currentUserData['interests'] ?? []);
-
-      // MODIFIED Query: Added user_liked check to see if current user liked the post
       final response = await supabase
           .from('posts')
-          .select('''
-            *, 
-            profiles(username, profile_url), 
-            likes(count),
-            user_liked:likes(profile_id)
-          ''')
-          .eq('user_liked.profile_id', currentUserId) // Filters the user_liked subquery
+          .select('*, profiles(username, profile_url), likes(count)')
           .order('created_at', ascending: false)
-          .limit(50);
+          .limit(20);
 
-      List<Map<String, dynamic>> pool = List<Map<String, dynamic>>.from(response);
-
-      if (pool.isEmpty) {
-        if (mounted) setState(() { _posts = []; _isLoading = false; });
-        return;
-      }
-
-      // AI Logic (Gemini re-ranking)
-      if (interests.isNotEmpty) {
-        try {
-          final model = GenerativeModel(
-            model: 'gemini-1.5-flash',
-            apiKey: 'YOUR_GEMINI_API_KEY',
-          );
-
-          String postMetaData = pool.take(20).map((p) =>
-          "ID:${p['id']} | Title:${p['title']} | Categories:${(p['category_names'] as List?)?.join(', ')}"
-          ).join("\n");
-
-          final prompt = """
-          User Profile Interests: ${interests.join(', ')}.
-          From the list below, pick the top 15 post IDs that match the user's vibe.
-          Return ONLY a comma-separated list of IDs.
-          
-          Posts:
-          $postMetaData
-          """;
-
-          final content = [Content.text(prompt)];
-          final aiResponse = await model.generateContent(content);
-
-          final recommendedIds = aiResponse.text?.split(',')
-              .map((e) => e.trim())
-              .toList() ?? [];
-
-          pool.sort((a, b) {
-            int indexA = recommendedIds.indexOf(a['id'].toString());
-            int indexB = recommendedIds.indexOf(b['id'].toString());
-            int weightA = indexA == -1 ? 100 : indexA;
-            int weightB = indexB == -1 ? 100 : indexB;
-            return weightA.compareTo(weightB);
-          });
-        } catch (aiError) {
-          debugPrint("Gemini failed: $aiError");
-          pool.shuffle();
-        }
-      } else {
-        pool.shuffle();
-      }
-
-      if (mounted) {
-        setState(() {
-          _posts = pool;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _posts = List<Map<String, dynamic>>.from(response);
+        _isLoading = false;
+      });
     } catch (e) {
-      debugPrint("Global Feed Error: $e");
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint("Standard Feed Error: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchPersonalizedAiFeed() async {
+    // MODIFIED: Only set full-screen loading if the list is currently empty
+    if (_posts.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUserId = widget.currentUserData['id'];
+
+      final profileResponse = await supabase
+          .from('profiles')
+          .select('interest_analysis')
+          .eq('id', currentUserId)
+          .single();
+
+      final Map<String, dynamic> interests = profileResponse['interest_analysis'] ?? {};
+
+      final postsResponse = await supabase
+          .from('posts')
+          .select('*, profiles(username, profile_url), likes(count)');
+
+      List<Map<String, dynamic>> allPosts = List<Map<String, dynamic>>.from(postsResponse);
+
+      allPosts.sort((a, b) {
+        double scoreA = 0;
+        double scoreB = 0;
+
+        final List<dynamic> categoriesA = a['category_names'] ?? [];
+        for (var cat in categoriesA) {
+          scoreA += (interests[cat.toString()] ?? 0).toDouble();
+        }
+
+        final List<dynamic> categoriesB = b['category_names'] ?? [];
+        for (var cat in categoriesB) {
+          scoreB += (interests[cat.toString()] ?? 0).toDouble();
+        }
+
+        final int likesA = (a['likes'] as List?)?.isNotEmpty == true
+            ? a['likes'][0]['count'] ?? 0 : 0;
+        final int likesB = (b['likes'] as List?)?.isNotEmpty == true
+            ? b['likes'][0]['count'] ?? 0 : 0;
+
+        scoreA += (likesA * 0.5);
+        scoreB += (likesB * 0.5);
+
+        return scoreB.compareTo(scoreA);
+      });
+
+      setState(() {
+        _posts = allPosts;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Hybrid AI Feed Error: $e");
+      _fetchStandardFeed();
     }
   }
 
@@ -131,15 +127,17 @@ class _DiscoverPageState extends State<DiscoverPage> {
           ),
         ],
       ),
-      body: RefreshIndicator(
+      // MODIFIED SECTION: Logic to hide middle spinner on swap-down refresh
+      body: _isLoading && _posts.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
         onRefresh: _fetchPersonalizedAiFeed,
         color: Colors.blueAccent,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _posts.isEmpty
+        child: _posts.isEmpty
             ? _buildEmptyState()
             : GridView.builder(
           padding: const EdgeInsets.all(12),
+          physics: const AlwaysScrollableScrollPhysics(), // Ensures swipe works even on short lists
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             crossAxisSpacing: 12,
@@ -156,12 +154,16 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Widget _discoverCard(Map<String, dynamic> post) {
     final profile = post['profiles'] ?? {};
     final media = post['media_urls'] as List? ?? [];
+    final List<dynamic> categories = post['category_names'] ?? [];
+
     final int likeCount = (post['likes'] as List?)?.isNotEmpty == true
         ? post['likes'][0]['count'] ?? 0
         : 0;
 
-    // MATCHED: Logic from UserProfilePage to check if current user liked the post
     final bool isLikedByMe = (post['user_liked'] as List?)?.isNotEmpty ?? false;
+
+    final int postIndex = _posts.indexOf(post);
+    final bool isAiTopPick = postIndex < 4 && postIndex != -1;
 
     return GestureDetector(
       onTap: () async {
@@ -175,60 +177,113 @@ class _DiscoverPageState extends State<DiscoverPage> {
             ),
           ),
         );
-        if (result == true) _fetchPersonalizedAiFeed(); // Refresh on return
+        if (result == true) _fetchPersonalizedAiFeed();
       },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                child: Image.network(
-                  media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade100, child: const Icon(LucideIcons.image, color: Colors.grey)),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(post['title'] ?? "Untitled", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 10,
-                        backgroundImage: profile['profile_url'] != null ? NetworkImage(profile['profile_url']) : null,
-                        child: profile['profile_url'] == null ? const Icon(Icons.person, size: 10) : null,
+                  Expanded(
+                    flex: 3,
+                    child: Image.network(
+                      media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade100,
+                        child: const Icon(LucideIcons.image, color: Colors.grey),
                       ),
-                      const SizedBox(width: 6),
-                      Expanded(child: Text(profile['username'] ?? "User", style: const TextStyle(fontSize: 11, color: Colors.black54), overflow: TextOverflow.ellipsis)),
-                      // MATCHED: Heart icon now changes style based on isLikedByMe
-                      Icon(
-                          isLikedByMe ? Icons.favorite : Icons.favorite_border,
-                          size: 14,
-                          color: isLikedByMe ? Colors.redAccent : Colors.grey
+                    ),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            post['title'] ?? "Untitled",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 9,
+                                backgroundImage: profile['profile_url'] != null
+                                    ? NetworkImage(profile['profile_url']) : null,
+                                child: profile['profile_url'] == null
+                                    ? const Icon(Icons.person, size: 10) : null,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  profile['username'] ?? "User",
+                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Icon(
+                                isLikedByMe ? Icons.favorite : Icons.favorite_border,
+                                size: 12,
+                                color: isLikedByMe ? Colors.redAccent : Colors.grey,
+                              ),
+                              const SizedBox(width: 2),
+                              Text("$likeCount", style: const TextStyle(fontSize: 10)),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 2),
-                      Text("$likeCount", style: const TextStyle(fontSize: 11)),
-                    ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
+              if (isAiTopPick)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blueAccent, Colors.purpleAccent.shade100],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.auto_awesome, color: Colors.white, size: 10),
+                        SizedBox(width: 4),
+                        Text(
+                          "FOR YOU",
+                          style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

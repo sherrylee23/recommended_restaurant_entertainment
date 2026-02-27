@@ -1,202 +1,304 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-// import 'package:recommended_restaurant_entertainment/profile.dart'; // Import if needed elsewhere
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:recommended_restaurant_entertainment/searchModule/search_entry.dart';
+import '../postModule/post_detail.dart';
 
-class DiscoverPage extends StatelessWidget {
-  const DiscoverPage({super.key});
+class DiscoverPage extends StatefulWidget {
+  final Map<String, dynamic> currentUserData;
+
+  const DiscoverPage({super.key, required this.currentUserData});
+
+  @override
+  State<DiscoverPage> createState() => _DiscoverPageState();
+}
+
+class _DiscoverPageState extends State<DiscoverPage> {
+  List<Map<String, dynamic>> _posts = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPersonalizedAiFeed();
+  }
+
+  Future<void> _fetchStandardFeed() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final response = await supabase
+          .from('posts')
+          .select('*, profiles(username, profile_url), likes(count)')
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      setState(() {
+        _posts = List<Map<String, dynamic>>.from(response);
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Standard Feed Error: $e");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchPersonalizedAiFeed() async {
+    // MODIFIED: Only set full-screen loading if the list is currently empty
+    if (_posts.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+      final currentUserId = widget.currentUserData['id'];
+
+      final profileResponse = await supabase
+          .from('profiles')
+          .select('interest_analysis')
+          .eq('id', currentUserId)
+          .single();
+
+      final Map<String, dynamic> interests = profileResponse['interest_analysis'] ?? {};
+
+      final postsResponse = await supabase
+          .from('posts')
+          .select('*, profiles(username, profile_url), likes(count)');
+
+      List<Map<String, dynamic>> allPosts = List<Map<String, dynamic>>.from(postsResponse);
+
+      allPosts.sort((a, b) {
+        double scoreA = 0;
+        double scoreB = 0;
+
+        final List<dynamic> categoriesA = a['category_names'] ?? [];
+        for (var cat in categoriesA) {
+          scoreA += (interests[cat.toString()] ?? 0).toDouble();
+        }
+
+        final List<dynamic> categoriesB = b['category_names'] ?? [];
+        for (var cat in categoriesB) {
+          scoreB += (interests[cat.toString()] ?? 0).toDouble();
+        }
+
+        final int likesA = (a['likes'] as List?)?.isNotEmpty == true
+            ? a['likes'][0]['count'] ?? 0 : 0;
+        final int likesB = (b['likes'] as List?)?.isNotEmpty == true
+            ? b['likes'][0]['count'] ?? 0 : 0;
+
+        scoreA += (likesA * 0.5);
+        scoreB += (likesB * 0.5);
+
+        return scoreB.compareTo(scoreA);
+      });
+
+      setState(() {
+        _posts = allPosts;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Hybrid AI Feed Error: $e");
+      _fetchStandardFeed();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white, // Changed from grey[100] to match your style
-
-      // ===== AppBar with Teammate's Gradient Design =====
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Discover',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Discover', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         centerTitle: true,
-        // --- The Gradient Header ---
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.blue.shade100,
-                Colors.purple.shade50,
-              ],
+              colors: [Colors.blue.shade100, Colors.purple.shade50],
             ),
           ),
         ),
         actions: [
-          // Keeping your Search and Filter functions
           IconButton(
             icon: const Icon(LucideIcons.search, color: Colors.black),
-            onPressed: () {},
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(LucideIcons.menu, color: Colors.black),
-            onSelected: (value) {
-              if (value == 'filter') {
-                _showFilterBottomSheet(context);
-              } else if (value == 'logout') {
-                print("User logged out");
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>(
-                value: 'filter',
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.sliders, size: 18, color: Colors.black),
-                    SizedBox(width: 10),
-                    Text('Filter & Sort'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem<String>(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(LucideIcons.logOut, size: 18, color: Colors.red),
-                    SizedBox(width: 10),
-                    Text('Logout', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => SearchEntryPage(currentUserData: widget.currentUserData))),
           ),
         ],
       ),
-
-      // ===== Body: Untouched Grid Logic =====
-      body: GridView.builder(
-        padding: const EdgeInsets.all(10),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 0.65,
+      // MODIFIED SECTION: Logic to hide middle spinner on swap-down refresh
+      body: _isLoading && _posts.isEmpty
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+        onRefresh: _fetchPersonalizedAiFeed,
+        color: Colors.blueAccent,
+        child: _posts.isEmpty
+            ? _buildEmptyState()
+            : GridView.builder(
+          padding: const EdgeInsets.all(12),
+          physics: const AlwaysScrollableScrollPhysics(), // Ensures swipe works even on short lists
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.68,
+          ),
+          itemCount: _posts.length,
+          itemBuilder: (context, index) => _discoverCard(_posts[index]),
         ),
-        itemCount: 10,
-        itemBuilder: (context, index) {
-          return _discoverCard();
-        },
       ),
     );
   }
 
-  // ===== Discover Card: Pattern updated to Lucide Icons =====
-  Widget _discoverCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: Image.network(
-              "https://picsum.photos/300/400?sig=${DateTime.now().millisecond}",
-              height: 150,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              "Delicious food",
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: const [
-                CircleAvatar(
-                  radius: 10,
-                  backgroundImage: NetworkImage("https://i.pravatar.cc/100"),
-                ),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    "windy0303",
-                    style: TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                // Icon pattern changed to Lucide heart
-                Icon(LucideIcons.heart, size: 14, color: Colors.red),
-                SizedBox(width: 2),
-                Text("193", style: TextStyle(fontSize: 12)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _discoverCard(Map<String, dynamic> post) {
+    final profile = post['profiles'] ?? {};
+    final media = post['media_urls'] as List? ?? [];
+    final List<dynamic> categories = post['category_names'] ?? [];
 
-  // ===== Filter Bottom Sheet: Untouched logic =====
-  void _showFilterBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Filter & Sort",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(LucideIcons.trendingUp),
-                title: const Text("Most Popular"),
-                onTap: () => Navigator.pop(context),
-              ),
-              ListTile(
-                leading: const Icon(LucideIcons.zap),
-                title: const Text("Latest"),
-                onTap: () => Navigator.pop(context),
-              ),
-              const Divider(),
-              Wrap(
-                spacing: 8,
-                children: [
-                  FilterChip(label: const Text("Cafe"), onSelected: (_) {}),
-                  FilterChip(label: const Text("Dessert"), onSelected: (_) {}),
-                  FilterChip(label: const Text("Fast Food"), onSelected: (_) {}),
-                ],
-              ),
-            ],
+    final int likeCount = (post['likes'] as List?)?.isNotEmpty == true
+        ? post['likes'][0]['count'] ?? 0
+        : 0;
+
+    final bool isLikedByMe = (post['user_liked'] as List?)?.isNotEmpty ?? false;
+
+    final int postIndex = _posts.indexOf(post);
+    final bool isAiTopPick = postIndex < 4 && postIndex != -1;
+
+    return GestureDetector(
+      onTap: () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PostDetailPage(
+              post: post,
+              userName: profile['username'] ?? 'User',
+              viewerProfileId: widget.currentUserData['id'],
+            ),
           ),
         );
+        if (result == true) _fetchPersonalizedAiFeed();
       },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Image.network(
+                      media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade100,
+                        child: const Icon(LucideIcons.image, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            post['title'] ?? "Untitled",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 9,
+                                backgroundImage: profile['profile_url'] != null
+                                    ? NetworkImage(profile['profile_url']) : null,
+                                child: profile['profile_url'] == null
+                                    ? const Icon(Icons.person, size: 10) : null,
+                              ),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  profile['username'] ?? "User",
+                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Icon(
+                                isLikedByMe ? Icons.favorite : Icons.favorite_border,
+                                size: 12,
+                                color: isLikedByMe ? Colors.redAccent : Colors.grey,
+                              ),
+                              const SizedBox(width: 2),
+                              Text("$likeCount", style: const TextStyle(fontSize: 10)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (isAiTopPick)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blueAccent, Colors.purpleAccent.shade100],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.auto_awesome, color: Colors.white, size: 10),
+                        SizedBox(width: 4),
+                        Text(
+                          "FOR YOU",
+                          style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(LucideIcons.searchX, size: 50, color: Colors.grey),
+          SizedBox(height: 10),
+          Text("No posts found in database.", style: TextStyle(color: Colors.grey)),
+        ],
+      ),
     );
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-
+import 'package:recommended_restaurant_entertainment/businessModule/booking_form.dart';
 
 class UserChatDetailPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -22,6 +22,20 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
   final _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  // Helper function to navigate to Booking Form
+  void _navigateToBooking() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => BookingFormPage(
+          businessId: widget.businessData['id'],
+          userId: widget.userData['id'],
+          businessName: widget.businessData['business_name'] ?? "Business",
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
@@ -39,12 +53,20 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
         title: Text(widget.businessData['business_name'] ?? "Chat"),
         backgroundColor: Colors.white,
         elevation: 0.5,
+        actions: [
+          // 1. Added Booking button to AppBar
+          TextButton.icon(
+            onPressed: _navigateToBooking,
+            icon: const Icon(Icons.calendar_month, size: 18, color: Colors.blueAccent),
+            label: const Text("Book Now", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              // Order by descending so newest is index 0 for reversed list
               stream: _supabase
                   .from('messages')
                   .stream(primaryKey: ['id'])
@@ -62,7 +84,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
 
                 return ListView.builder(
                   controller: _scrollController,
-                  reverse: true, // New messages stay at bottom
+                  reverse: true,
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
@@ -113,6 +135,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
       child: SafeArea(
         child: Row(
           children: [
+
             Expanded(
               child: TextField(
                 controller: _messageController,

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:recommended_restaurant_entertainment/searchModule/search_entry.dart';
 import '../postModule/post_detail.dart';
 
@@ -24,12 +23,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
     _fetchPersonalizedAiFeed();
   }
 
+  // Fallback feed if AI logic fails
   Future<void> _fetchStandardFeed() async {
     try {
       final supabase = Supabase.instance.client;
+      // Fetching basic list with likes and comments counts
       final response = await supabase
           .from('posts')
-          .select('*, profiles(username, profile_url), likes(count)')
+          .select('*, profiles(username, profile_url), likes(count), comments(count)')
           .order('created_at', ascending: false)
           .limit(20);
 
@@ -44,7 +45,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
   }
 
   Future<void> _fetchPersonalizedAiFeed() async {
-    // MODIFIED: Only set full-screen loading if the list is currently empty
     if (_posts.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -53,6 +53,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
       final supabase = Supabase.instance.client;
       final currentUserId = widget.currentUserData['id'];
 
+      // Fetch user interests for sorting
       final profileResponse = await supabase
           .from('profiles')
           .select('interest_analysis')
@@ -61,9 +62,15 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
       final Map<String, dynamic> interests = profileResponse['interest_analysis'] ?? {};
 
+      // Fetch all posts with engagement counts
       final postsResponse = await supabase
           .from('posts')
-          .select('*, profiles(username, profile_url), likes(count)');
+          .select('''
+            *, 
+            profiles(username, profile_url), 
+            likes(count), 
+            comments(count)
+          ''');
 
       List<Map<String, dynamic>> allPosts = List<Map<String, dynamic>>.from(postsResponse);
 
@@ -71,6 +78,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
         double scoreA = 0;
         double scoreB = 0;
 
+        // Interest Match Scoring
         final List<dynamic> categoriesA = a['category_names'] ?? [];
         for (var cat in categoriesA) {
           scoreA += (interests[cat.toString()] ?? 0).toDouble();
@@ -81,13 +89,20 @@ class _DiscoverPageState extends State<DiscoverPage> {
           scoreB += (interests[cat.toString()] ?? 0).toDouble();
         }
 
+        // Engagement Scoring
         final int likesA = (a['likes'] as List?)?.isNotEmpty == true
             ? a['likes'][0]['count'] ?? 0 : 0;
         final int likesB = (b['likes'] as List?)?.isNotEmpty == true
             ? b['likes'][0]['count'] ?? 0 : 0;
 
-        scoreA += (likesA * 0.5);
-        scoreB += (likesB * 0.5);
+        final int commentsA = (a['comments'] as List?)?.isNotEmpty == true
+            ? a['comments'][0]['count'] ?? 0 : 0;
+        final int commentsB = (b['comments'] as List?)?.isNotEmpty == true
+            ? b['comments'][0]['count'] ?? 0 : 0;
+
+        // AI Logic: Weighting comments (1.0) higher than likes (0.5)
+        scoreA += (likesA * 0.5) + (commentsA * 1.0);
+        scoreB += (likesB * 0.5) + (commentsB * 1.0);
 
         return scoreB.compareTo(scoreA);
       });
@@ -127,7 +142,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
           ),
         ],
       ),
-      // MODIFIED SECTION: Logic to hide middle spinner on swap-down refresh
       body: _isLoading && _posts.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -137,7 +151,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
             ? _buildEmptyState()
             : GridView.builder(
           padding: const EdgeInsets.all(12),
-          physics: const AlwaysScrollableScrollPhysics(), // Ensures swipe works even on short lists
+          physics: const AlwaysScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             crossAxisSpacing: 12,
@@ -154,13 +168,15 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Widget _discoverCard(Map<String, dynamic> post) {
     final profile = post['profiles'] ?? {};
     final media = post['media_urls'] as List? ?? [];
-    final List<dynamic> categories = post['category_names'] ?? [];
 
+    // Engagement counts
     final int likeCount = (post['likes'] as List?)?.isNotEmpty == true
         ? post['likes'][0]['count'] ?? 0
         : 0;
 
-    final bool isLikedByMe = (post['user_liked'] as List?)?.isNotEmpty ?? false;
+    final int commentCount = (post['comments'] as List?)?.isNotEmpty == true
+        ? post['comments'][0]['count'] ?? 0
+        : 0;
 
     final int postIndex = _posts.indexOf(post);
     final bool isAiTopPick = postIndex < 4 && postIndex != -1;
@@ -188,7 +204,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
               color: Colors.black.withOpacity(0.06),
               blurRadius: 12,
               offset: const Offset(0, 4),
-            ),
+            )
           ],
         ),
         child: ClipRRect(
@@ -204,10 +220,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
                       media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey.shade100,
-                        child: const Icon(LucideIcons.image, color: Colors.grey),
-                      ),
                     ),
                   ),
                   Expanded(
@@ -228,9 +240,9 @@ class _DiscoverPageState extends State<DiscoverPage> {
                             children: [
                               CircleAvatar(
                                 radius: 9,
-                                backgroundImage: profile['profile_url'] != null
+                                backgroundImage: (profile['profile_url'] != null && profile['profile_url'].toString().isNotEmpty)
                                     ? NetworkImage(profile['profile_url']) : null,
-                                child: profile['profile_url'] == null
+                                child: (profile['profile_url'] == null || profile['profile_url'].toString().isEmpty)
                                     ? const Icon(Icons.person, size: 10) : null,
                               ),
                               const SizedBox(width: 5),
@@ -241,11 +253,13 @@ class _DiscoverPageState extends State<DiscoverPage> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              Icon(
-                                isLikedByMe ? Icons.favorite : Icons.favorite_border,
-                                size: 12,
-                                color: isLikedByMe ? Colors.redAccent : Colors.grey,
-                              ),
+                              // Comment Count Display
+                              const Icon(Icons.mode_comment_outlined, size: 12, color: Colors.grey),
+                              const SizedBox(width: 2),
+                              Text("$commentCount", style: const TextStyle(fontSize: 10)),
+                              const SizedBox(width: 6),
+                              // Like Count Display
+                              const Icon(Icons.favorite_border, size: 12, color: Colors.grey),
                               const SizedBox(width: 2),
                               Text("$likeCount", style: const TextStyle(fontSize: 10)),
                             ],
@@ -263,21 +277,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.blueAccent, Colors.purpleAccent.shade100],
-                      ),
+                      gradient: LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent.shade100]),
                       borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
+                    child: const Row(
+                      children: [
                         Icon(Icons.auto_awesome, color: Colors.white, size: 10),
                         SizedBox(width: 4),
-                        Text(
-                          "FOR YOU",
-                          style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
+                        Text("FOR YOU", style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -290,13 +297,13 @@ class _DiscoverPageState extends State<DiscoverPage> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
+        children: [
           Icon(LucideIcons.searchX, size: 50, color: Colors.grey),
           SizedBox(height: 10),
-          Text("No posts found in database.", style: TextStyle(color: Colors.grey)),
+          Text("No posts found.", style: TextStyle(color: Colors.grey)),
         ],
       ),
     );

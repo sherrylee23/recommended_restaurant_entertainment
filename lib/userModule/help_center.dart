@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:recommended_restaurant_entertainment/userModule/feedback.dart';
+// Ensure the path to your ChatNomiPage is correct
 import 'package:recommended_restaurant_entertainment/customer_service/chatbot.dart';
-// Ensure you import the page you created for the chat
-// import 'package:recommended_restaurant_entertainment/userModule/chat_nomi_page.dart';
 
 class HelpCenterPage extends StatelessWidget {
-  const HelpCenterPage({super.key});
+  final Map<String, dynamic> userData;
+  const HelpCenterPage({super.key, required this.userData});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Allows gradient to start from the very top of the screen
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         leading: IconButton(
@@ -32,7 +31,7 @@ class HelpCenterPage extends StatelessWidget {
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             colors: [
-              Colors.blue.shade100,
+              Colors.blue.shade100, //
               Colors.purple.shade50,
             ],
           ),
@@ -52,7 +51,7 @@ class HelpCenterPage extends StatelessWidget {
                 const SizedBox(height: 24),
                 _buildSectionHeader("Support"),
                 _buildSectionCard([
-                  // FIX: Call the method correctly here
+                  // Pass context correctly to the support item
                   _buildSupportItem("Chat with Nomi", Icons.chat_bubble_outline, context),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   ListTile(
@@ -66,7 +65,7 @@ class HelpCenterPage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const FeedbackPage(),
+                          builder: (context) => FeedbackPage(userData: userData),
                         ),
                       );
                     },
@@ -99,7 +98,7 @@ class HelpCenterPage extends StatelessWidget {
   Widget _buildSectionCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
+        color: Colors.white.withOpacity(0.85), //
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -127,17 +126,17 @@ class HelpCenterPage extends StatelessWidget {
     );
   }
 
-  // FIX: Properly defined method outside the build tree
-  Widget _buildSupportItem(String title, IconData icon, BuildContext context) { // Add context here
+  // FIXED: Now correctly passes userData to ChatNomiPage
+  Widget _buildSupportItem(String title, IconData icon, BuildContext context) {
     return ListTile(
       title: Text(title, style: const TextStyle(fontSize: 16)),
       trailing: Icon(icon, size: 24, color: Colors.black87),
       onTap: () {
-        // Navigate to your ChatNomiPage
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const ChatNomiPage(), // Ensure this class exists
+            // Pass the required userData so Nomi knows who is chatting
+            builder: (context) => ChatNomiPage(userData: userData),
           ),
         );
       },

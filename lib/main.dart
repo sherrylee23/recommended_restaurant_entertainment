@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:recommended_restaurant_entertainment/Location/location_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -9,6 +10,8 @@ import 'package:recommended_restaurant_entertainment/discoverModule/discoverPage
 import 'package:recommended_restaurant_entertainment/loginModule/updatePassword_page.dart';
 import 'package:recommended_restaurant_entertainment/postModule/createPost.dart';
 import 'package:recommended_restaurant_entertainment/userModule/user_profile.dart';
+import 'package:recommended_restaurant_entertainment/Location/location_screen.dart';
+import 'package:recommended_restaurant_entertainment/chat/chat_page.dart';
 
 // 1. Your Supabase Credentials
 const String url = 'https://bljokgoarqfpkcthkmvq.supabase.co';
@@ -72,9 +75,9 @@ class _MainNavigationState extends State<MainNavigation> {
     // Initialize the pages and pass the GlobalKey to UserProfilePage
     _pages = [
       DiscoverPage(currentUserData: widget.userData),
-      const Center(child: Text('Location Screen')),
+      MapDiscoveryPage(userData: widget.userData),
       const SizedBox.shrink(),
-      const Center(child: Text('Chat Screen')),
+      UserInboxPage(userData: widget.userData),
       UserProfilePage(key: _profileKey, userData: widget.userData),
     ];
 

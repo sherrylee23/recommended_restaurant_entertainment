@@ -288,30 +288,27 @@ class UserProfilePageState extends State<UserProfilePage> {
     return PopupMenuButton<String>(
       icon: const Icon(Icons.menu, color: Colors.black87),
       onSelected: (value) async {
-        if (value == 'logout') {
-          _handleLogout();
-        } else if (value == 'help') {
-          Navigator.push(context,
-              MaterialPageRoute(
-                  builder: (context) => HelpCenterPage(userData: widget.userData)));
-        } else if (value == 'my_reports') {
-          // Navigate to report status list
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => MyReportListPage(userData: widget.userData),
-            ),
-          );
-        } else if (value == 'personalized') {
-          final newInterests = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => PersonalizedPage(userData: widget.userData)),
-          );
-          if (newInterests != null) {
-            setState(() {
-              widget.userData['interests'] = newInterests;
-            });
-          }
+        switch (value) {
+          case 'logout':
+            _handleLogout();
+            break;
+          case 'help':
+            Navigator.push(context, MaterialPageRoute(builder: (context) => HelpCenterPage(userData: widget.userData)));
+            break;
+          case 'my_reports':
+            Navigator.push(context, MaterialPageRoute(builder: (context) => MyReportListPage(userData: widget.userData)));
+            break;
+          case 'personalized':
+            final newInterests = await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => PersonalizedPage(userData: widget.userData)),
+            );
+            if (newInterests != null) {
+              setState(() {
+                widget.userData['interests'] = newInterests;
+              });
+            }
+            break;
         }
       },
       itemBuilder: (context) => [
@@ -319,7 +316,7 @@ class UserProfilePageState extends State<UserProfilePage> {
           value: 'personalized',
           child: Row(
             children: [
-              Icon(Icons.auto_awesome, color: Colors.blueAccent),
+              Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 20),
               SizedBox(width: 10),
               Text("AI Personalized"),
             ],
@@ -329,7 +326,7 @@ class UserProfilePageState extends State<UserProfilePage> {
           value: 'my_reports',
           child: Row(
             children: [
-              Icon(Icons.assignment_turned_in_outlined, color: Colors.blueAccent),
+              Icon(Icons.assignment_turned_in_outlined, color: Colors.blueAccent, size: 20),
               SizedBox(width: 10),
               Text("My Reports"),
             ],
@@ -339,7 +336,7 @@ class UserProfilePageState extends State<UserProfilePage> {
           value: 'help',
           child: Row(
             children: [
-              Icon(Icons.help_outline, color: Colors.black87),
+              Icon(Icons.help_outline, color: Colors.black87, size: 20),
               SizedBox(width: 10),
               Text("Help Center"),
             ],
@@ -349,7 +346,7 @@ class UserProfilePageState extends State<UserProfilePage> {
           value: 'logout',
           child: Row(
             children: [
-              Icon(Icons.logout, color: Colors.redAccent),
+              Icon(Icons.logout, color: Colors.redAccent, size: 20),
               SizedBox(width: 10),
               Text("Logout", style: TextStyle(color: Colors.redAccent)),
             ],
@@ -437,7 +434,7 @@ class _StatItem extends StatelessWidget {
   }
 }
 
-// --- MyReportListPage Implementation ---
+// --- MyReportListPage Integrated Implementation ---
 
 class MyReportListPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -450,15 +447,18 @@ class MyReportListPage extends StatelessWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("My Reports Status", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("My Reports Status", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [Colors.blue.shade100, Colors.purple.shade50],
           ),
         ),
@@ -471,6 +471,7 @@ class MyReportListPage extends StatelessWidget {
                 .order('created_at', ascending: false),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
               if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No reports found."));
 
               final reports = snapshot.data!;
@@ -482,6 +483,7 @@ class MyReportListPage extends StatelessWidget {
                   final bool isResolved = report['status'] == 'resolved';
 
                   return Card(
+                    elevation: 2,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     child: ExpansionTile(
@@ -489,7 +491,7 @@ class MyReportListPage extends StatelessWidget {
                         isResolved ? Icons.check_circle : Icons.pending,
                         color: isResolved ? Colors.green : Colors.orange,
                       ),
-                      title: Text(report['business_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(report['business_name'] ?? "Report", style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text("Status: ${report['status'].toString().toUpperCase()}"),
                       children: [
                         Padding(
@@ -498,11 +500,15 @@ class MyReportListPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text("Your Description:", style: TextStyle(fontWeight: FontWeight.bold)),
-                              Text(report['description']),
+                              const SizedBox(height: 4),
+                              Text(report['description'] ?? "No description provided."),
                               if (isResolved && report['admin_feedback'] != null) ...[
-                                const Divider(),
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Divider(),
+                                ),
                                 Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(12),
                                   width: double.infinity,
                                   decoration: BoxDecoration(
                                     color: Colors.blue.shade50,
@@ -510,7 +516,7 @@ class MyReportListPage extends StatelessWidget {
                                   ),
                                   child: Text(
                                     "Admin Reply: ${report['admin_feedback']}",
-                                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13),
+                                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13, color: Colors.blueAccent),
                                   ),
                                 ),
                               ],

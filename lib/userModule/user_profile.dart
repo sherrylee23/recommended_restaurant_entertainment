@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'edit_profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/login_page.dart';
-import 'dart:math';
 import 'help_center.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../postModule/post_detail.dart';
 import 'package:recommended_restaurant_entertainment/userModule/personalized.dart';
+import 'package:recommended_restaurant_entertainment/customer_service/my_report.dart';
 
 class UserProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -28,6 +28,47 @@ class UserProfilePageState extends State<UserProfilePage> {
     refreshPosts();
   }
 
+  // --- LOGIC: CALCULATE USER STATUS DYNAMICALLY ---
+  String _calculateStatus() {
+    final String? createdAtRaw = widget.userData['created_at'];
+    if (createdAtRaw == null) return "New Users";
+
+    final DateTime createdAt = DateTime.parse(createdAtRaw);
+    final int daysJoined = DateTime.now().difference(createdAt).inDays;
+
+    if (daysJoined >= 365) return "Trusted User";
+    if (daysJoined >= 14) return "Active User";
+    return "New Users";
+  }
+
+  // --- POPUP LOGIC FOR ACTIVITY LEVELS ---
+  void _showStatusInfoPopup(String status) {
+    String description = "";
+
+    if (status == "Trusted User") {
+      description = "This account is trusted.";
+    } else if (status == "Active User") {
+      description = "Active users are those who have used the system for 14 days or longer.";
+    } else {
+      description = "New users are limited to comment a maximum of 3 reviews per day.";
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(status, style: const TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(description, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Got it", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> refreshPosts() async {
     try {
       final supabase = Supabase.instance.client;
@@ -38,31 +79,31 @@ class UserProfilePageState extends State<UserProfilePage> {
           .select('''
             *,
             likes(count),
+            comments(count),
             user_liked:likes(profile_id)
           ''')
           .eq('profile_id', profileId)
-          .eq('user_liked.profile_id', profileId)
           .order('created_at', ascending: false);
 
       int likesSum = 0;
-      if (postsData.isNotEmpty) {
+      if (postsData != null && postsData.isNotEmpty) {
         for (var post in postsData) {
-          final list = post['likes'] as List;
-          if (list.isNotEmpty) {
-            likesSum += (list.first['count'] as int);
+          final likesList = post['likes'];
+          if (likesList != null && likesList is List && likesList.isNotEmpty) {
+            likesSum += (likesList.first['count'] as int? ?? 0);
           }
         }
       }
 
       if (mounted) {
         setState(() {
-          _userPosts = List<Map<String, dynamic>>.from(postsData);
+          _userPosts = postsData != null ? List<Map<String, dynamic>>.from(postsData) : [];
           _totalLikes = likesSum;
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint("Error fetching posts or likes: $e");
+      debugPrint("Error fetching posts: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -152,13 +193,7 @@ class UserProfilePageState extends State<UserProfilePage> {
 
   Widget _buildPostGrid(String username) {
     if (_isLoading) return const Padding(padding: EdgeInsets.all(50), child: Center(child: CircularProgressIndicator()));
-
-    if (_userPosts.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(100),
-        child: Center(child: Text("No posts yet.", style: TextStyle(color: Colors.grey))),
-      );
-    }
+    if (_userPosts.isEmpty) return const Padding(padding: EdgeInsets.all(100), child: Center(child: Text("No posts yet.", style: TextStyle(color: Colors.grey))));
 
     return GridView.builder(
       shrinkWrap: true,
@@ -173,47 +208,26 @@ class UserProfilePageState extends State<UserProfilePage> {
       itemCount: _userPosts.length,
       itemBuilder: (context, index) {
         final post = _userPosts[index];
-        final List<dynamic> media = post['media_urls'] ?? [];
+        final dynamic rawMedia = post['media_urls'];
+        final List<dynamic> media = (rawMedia != null && rawMedia is List) ? rawMedia : [];
         final String profileUrl = widget.userData['profile_url'] ?? "";
 
-        final int postLikeCount = (post['likes'] as List).isNotEmpty
-            ? (post['likes'] as List).first['count'] ?? 0
-            : 0;
-
-        final bool isLikedByMe = (post['user_liked'] as List).isNotEmpty;
+        final likesData = post['likes'];
+        final int postLikeCount = (likesData != null && likesData is List && likesData.isNotEmpty) ? likesData.first['count'] ?? 0 : 0;
+        final commentsData = post['comments'];
+        final int postCommentCount = (commentsData != null && commentsData is List && commentsData.isNotEmpty) ? commentsData.first['count'] ?? 0 : 0;
+        final userLikedData = post['user_liked'];
+        final bool isLikedByMe = (userLikedData != null && userLikedData is List && userLikedData.isNotEmpty);
 
         return GestureDetector(
           onTap: () async {
             final Map<String, dynamic> postWithProfile = Map.from(post);
-            postWithProfile['profiles'] = {
-              'profile_url': widget.userData['profile_url'],
-              'username': username,
-            };
-
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => PostDetailPage(
-                  post: postWithProfile,
-                  userName: username,
-                  viewerProfileId: widget.userData['id'],
-                ),
-              ),
-            );
+            postWithProfile['profiles'] = {'profile_url': profileUrl, 'username': username};
+            final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => PostDetailPage(post: postWithProfile, userName: username, viewerProfileId: widget.userData['id'])));
             if (result == true) refreshPosts();
           },
           child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))]),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -221,20 +235,8 @@ class UserProfilePageState extends State<UserProfilePage> {
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
                     child: media.isNotEmpty
-                        ? Image.network(
-                      media[0],
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey.shade100,
-                        child: const Icon(LucideIcons.image, color: Colors.grey),
-                      ),
-                    )
-                        : Container(
-                      color: Colors.grey.shade100,
-                      width: double.infinity,
-                      child: const Icon(LucideIcons.image, color: Colors.grey),
-                    ),
+                        ? Image.network(media[0], width: double.infinity, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade100, child: const Icon(LucideIcons.image, color: Colors.grey)))
+                        : Container(color: Colors.grey.shade100, width: double.infinity, child: const Icon(LucideIcons.image, color: Colors.grey)),
                   ),
                 ),
                 Padding(
@@ -242,33 +244,18 @@ class UserProfilePageState extends State<UserProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        post['title'] ?? "Untitled",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
+                      Text(post['title'] ?? "Untitled", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundImage: profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null,
-                            child: profileUrl.isEmpty ? const Icon(Icons.person, size: 10) : null,
-                          ),
+                          CircleAvatar(radius: 10, backgroundImage: profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null, child: profileUrl.isEmpty ? const Icon(Icons.person, size: 10) : null),
                           const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              username,
-                              style: const TextStyle(fontSize: 11, color: Colors.black54),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Icon(
-                            isLikedByMe ? Icons.favorite : Icons.favorite_border,
-                            size: 14,
-                            color: isLikedByMe ? Colors.redAccent : Colors.grey,
-                          ),
+                          Expanded(child: Text(username, style: const TextStyle(fontSize: 11, color: Colors.black54), overflow: TextOverflow.ellipsis)),
+                          const Icon(Icons.mode_comment_outlined, size: 12, color: Colors.grey),
+                          const SizedBox(width: 2),
+                          Text("$postCommentCount", style: const TextStyle(fontSize: 10)),
+                          const SizedBox(width: 5),
+                          Icon(isLikedByMe ? Icons.favorite : Icons.favorite_border, size: 14, color: isLikedByMe ? Colors.redAccent : Colors.grey),
                           const SizedBox(width: 2),
                           Text("$postLikeCount", style: const TextStyle(fontSize: 11)),
                         ],
@@ -289,69 +276,22 @@ class UserProfilePageState extends State<UserProfilePage> {
       icon: const Icon(Icons.menu, color: Colors.black87),
       onSelected: (value) async {
         switch (value) {
-          case 'logout':
-            _handleLogout();
-            break;
-          case 'help':
-            Navigator.push(context, MaterialPageRoute(builder: (context) => HelpCenterPage(userData: widget.userData)));
-            break;
-          case 'my_reports':
-            Navigator.push(context, MaterialPageRoute(builder: (context) => MyReportListPage(userData: widget.userData)));
-            break;
+          case 'logout': _handleLogout(); break;
+          case 'help': Navigator.push(context, MaterialPageRoute(builder: (context) => HelpCenterPage(userData: widget.userData))); break;
           case 'personalized':
-            final newInterests = await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => PersonalizedPage(userData: widget.userData)),
-            );
-            if (newInterests != null) {
-              setState(() {
-                widget.userData['interests'] = newInterests;
-              });
-            }
+            final newInterests = await Navigator.push(context, MaterialPageRoute(builder: (context) => PersonalizedPage(userData: widget.userData)));
+            if (newInterests != null) setState(() { widget.userData['interests'] = newInterests; });
+            break;
+          case 'reports':
+          Navigator.push(context, MaterialPageRoute(builder: (context) => MyReportListPage(userData: widget.userData)));
             break;
         }
       },
       itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: 'personalized',
-          child: Row(
-            children: [
-              Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 20),
-              SizedBox(width: 10),
-              Text("AI Personalized"),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'my_reports',
-          child: Row(
-            children: [
-              Icon(Icons.assignment_turned_in_outlined, color: Colors.blueAccent, size: 20),
-              SizedBox(width: 10),
-              Text("My Reports"),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'help',
-          child: Row(
-            children: [
-              Icon(Icons.help_outline, color: Colors.black87, size: 20),
-              SizedBox(width: 10),
-              Text("Help Center"),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'logout',
-          child: Row(
-            children: [
-              Icon(Icons.logout, color: Colors.redAccent, size: 20),
-              SizedBox(width: 10),
-              Text("Logout", style: TextStyle(color: Colors.redAccent)),
-            ],
-          ),
-        ),
+        const PopupMenuItem(value: 'personalized', child: Row(children: [Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 20), SizedBox(width: 10), Text("AI Personalized")])),
+        const PopupMenuItem(value: 'reports', child: Row(children: [Icon(Icons.description_outlined, color: Colors.black87, size: 20), SizedBox(width: 10), Text("My Reports")])),
+        const PopupMenuItem(value: 'help', child: Row(children: [Icon(Icons.help_outline, color: Colors.black87, size: 20), SizedBox(width: 10), Text("Help Center")])),
+        const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, color: Colors.redAccent, size: 20), SizedBox(width: 10), Text("Logout", style: TextStyle(color: Colors.redAccent))])),
       ],
     );
   }
@@ -361,13 +301,8 @@ class UserProfilePageState extends State<UserProfilePage> {
     Color genderColor = Colors.grey;
     final String gender = (widget.userData['gender'] ?? "").toString().toLowerCase();
     final String? profileUrl = widget.userData['profile_url'];
-    if (gender == "female") {
-      genderIcon = Icons.female;
-      genderColor = Colors.pinkAccent;
-    } else if (gender == "male") {
-      genderIcon = Icons.male;
-      genderColor = Colors.blueAccent;
-    }
+    if (gender == "female") { genderIcon = Icons.female; genderColor = Colors.pinkAccent; }
+    else if (gender == "male") { genderIcon = Icons.male; genderColor = Colors.blueAccent; }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -395,11 +330,26 @@ class UserProfilePageState extends State<UserProfilePage> {
   }
 
   Widget _buildUserStatusBadge() {
-    final String statusTitle = widget.userData['status'] ?? "New Users";
-    String statusMessage = statusTitle == "New Users" ? "New users are limited to comment 3 reviews per day." : statusTitle == "Active Users" ? "Active users have used the system for 14+ days." : "This account is trusted.";
+    final String statusTitle = _calculateStatus();
+
     return GestureDetector(
-      onTap: () => showDialog(context: context, builder: (context) => AlertDialog(title: Text(statusTitle), content: Text(statusMessage), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))])),
-      child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(5)), child: Row(mainAxisSize: MainAxisSize.min, children: [Text(statusTitle, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)), const SizedBox(width: 4), const Icon(Icons.info_outline, size: 12)])),
+      onTap: () => _showStatusInfoPopup(statusTitle),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(statusTitle, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+            const SizedBox(width: 4),
+            const Icon(Icons.info_outline, size: 12, color: Colors.blueAccent),
+          ],
+        ),
+      ),
     );
   }
 
@@ -409,13 +359,33 @@ class UserProfilePageState extends State<UserProfilePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(children: [_StatItem(label: "Posts", count: _userPosts.length.toString()), const SizedBox(width: 30), _StatItem(label: "Likes", count: _totalLikes.toString())]),
+          Row(
+            children: [
+              _StatItem(label: "Posts", count: _userPosts.length.toString()),
+              const SizedBox(width: 30),
+              _StatItem(label: "Likes", count: _totalLikes.toString()),
+            ],
+          ),
           ElevatedButton(
             onPressed: () async {
-              final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfilePage(userData: widget.userData)));
-              if (result != null && result is Map<String, dynamic>) setState(() { widget.userData.addAll(result); });
+              final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EditProfilePage(userData: widget.userData))
+              );
+              if (result != null && result is Map<String, dynamic>) {
+                setState(() { widget.userData.addAll(result); });
+              }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.9), foregroundColor: Colors.black87, elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade300))),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.9),
+              foregroundColor: Colors.black87,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: Colors.grey.shade300)
+              ),
+            ),
             child: const Text("Edit Profile", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -428,110 +398,15 @@ class _StatItem extends StatelessWidget {
   final String label;
   final String count;
   const _StatItem({required this.label, required this.count});
-  @override
-  Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(count, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))]);
-  }
-}
-
-// --- MyReportListPage Integrated Implementation ---
-
-class MyReportListPage extends StatelessWidget {
-  final Map<String, dynamic> userData;
-  const MyReportListPage({super.key, required this.userData});
 
   @override
   Widget build(BuildContext context) {
-    final supabase = Supabase.instance.client;
-
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text("My Reports Status", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade100, Colors.purple.shade50],
-          ),
-        ),
-        child: SafeArea(
-          child: FutureBuilder<List<Map<String, dynamic>>>(
-            future: supabase
-                .from('business_reports')
-                .select()
-                .eq('profile_id', userData['id'])
-                .order('created_at', ascending: false),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-              if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No reports found."));
-
-              final reports = snapshot.data!;
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: reports.length,
-                itemBuilder: (context, index) {
-                  final report = reports[index];
-                  final bool isResolved = report['status'] == 'resolved';
-
-                  return Card(
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    child: ExpansionTile(
-                      leading: Icon(
-                        isResolved ? Icons.check_circle : Icons.pending,
-                        color: isResolved ? Colors.green : Colors.orange,
-                      ),
-                      title: Text(report['business_name'] ?? "Report", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("Status: ${report['status'].toString().toUpperCase()}"),
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("Your Description:", style: TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 4),
-                              Text(report['description'] ?? "No description provided."),
-                              if (isResolved && report['admin_feedback'] != null) ...[
-                                const Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Divider(),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    "Admin Reply: ${report['admin_feedback']}",
-                                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13, color: Colors.blueAccent),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(count, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))
+      ],
     );
   }
 }

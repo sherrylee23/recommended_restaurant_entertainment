@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,11 +23,15 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
   bool _isSaving = false;
   File? _imageFile;
   String? _imageUrl;
+  String? _selectedLocationId;
 
   @override
   void initState() {
     super.initState();
     _imageUrl = widget.businessData['profile_url']?.toString();
+
+    // Load existing location_id if available
+    _selectedLocationId = widget.businessData['location_id']?.toString();
 
     _idController = TextEditingController(text: widget.businessData['id']?.toString() ?? "");
     _nameController = TextEditingController(text: widget.businessData['business_name']?.toString() ?? "");
@@ -36,6 +41,123 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
     _typeController = TextEditingController(text: widget.businessData['business_type']?.toString() ?? "Entertainment");
   }
 
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _addressController.dispose();
+    _hoursController.dispose();
+    _phoneController.dispose();
+    _idController.dispose();
+    _typeController.dispose();
+    super.dispose();
+  }
+
+  // --- Location Picker Logic ---
+  Future<void> _showLocationPicker() async {
+    final TextEditingController modalSearchController = TextEditingController();
+    Timer? debounce;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.8,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      const Text("Search Location", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 15),
+                      TextField(
+                        controller: modalSearchController,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          hintText: "Enter building name or address...",
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: modalSearchController.text.isNotEmpty
+                              ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                            modalSearchController.clear();
+                            setModalState(() {});
+                          })
+                              : null,
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                        ),
+                        onChanged: (val) {
+                          if (debounce?.isActive ?? false) debounce!.cancel();
+                          debounce = Timer(const Duration(milliseconds: 500), () {
+                            setModalState(() {});
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 15),
+                      Expanded(
+                        child: FutureBuilder<List<Map<String, dynamic>>>(
+                          future: _searchLocations(modalSearchController.text),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+
+                            final locations = snapshot.data ?? [];
+
+                            return ListView.separated(
+                              controller: scrollController,
+                              itemCount: locations.length,
+                              separatorBuilder: (context, index) => const Divider(),
+                              itemBuilder: (context, index) {
+                                final loc = locations[index];
+                                return ListTile(
+                                  leading: const Icon(Icons.location_on, color: Colors.blueAccent),
+                                  title: Text(loc['name'] ?? "Unknown", style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  subtitle: Text("${loc['address'] ?? ''}, ${loc['area'] ?? ''}"),
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedLocationId = loc['id'].toString();
+                                      _addressController.text = loc['name'];
+                                    });
+                                    Navigator.pop(context);
+                                  },
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _searchLocations(String query) async {
+    try {
+      var request = Supabase.instance.client.from('locations').select();
+      if (query.isNotEmpty) {
+        request = request.or('name.ilike.%$query%,address.ilike.%$query%');
+      }
+      final response = await request.limit(15);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // --- Image & Save Logic ---
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
@@ -47,7 +169,6 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
     try {
       final fileName = '$businessId-${DateTime.now().millisecondsSinceEpoch}.jpg';
       final path = 'profile_pics/$fileName';
-      // Note: Ensure your bucket name matches (using 'business_assets' as previously discussed)
       await Supabase.instance.client.storage.from('business_assets').upload(path, _imageFile!);
       return Supabase.instance.client.storage.from('business_assets').getPublicUrl(path);
     } catch (e) {
@@ -61,11 +182,13 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
       final int numericId = int.parse(_idController.text);
       String? finalImageUrl = await _uploadImage(numericId.toString());
 
+      // This will now work after you run the ALTER TABLE SQL command
       await Supabase.instance.client.from('business_profiles').update({
         'address': _addressController.text.trim(),
         'hours': _hoursController.text.trim(),
         'phone': _phoneController.text.trim(),
         'profile_url': finalImageUrl,
+        'location_id': _selectedLocationId,
       }).eq('id', numericId);
 
       final updated = await Supabase.instance.client.from('business_profiles').select().eq('id', numericId).single();
@@ -113,7 +236,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
                 const SizedBox(height: 15),
                 _buildTextField("Business Type", _typeController, enabled: false),
                 const SizedBox(height: 15),
-                _buildTextField("Address", _addressController, enabled: true),
+                _buildLocationField(),
                 const SizedBox(height: 15),
                 _buildTextField("Hours", _hoursController, enabled: true),
                 const SizedBox(height: 15),
@@ -127,6 +250,43 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLocationField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Address / Location", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _showLocationPicker,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.blue.shade100),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on, color: Colors.blueAccent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _addressController.text.isEmpty ? "Select Location" : _addressController.text,
+                    style: TextStyle(
+                      color: _addressController.text.isEmpty ? Colors.grey : Colors.black,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -165,7 +325,6 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
         TextField(
           controller: controller,
           readOnly: !enabled,
-          maxLines: label.contains("Address") ? 3 : 1,
           decoration: InputDecoration(
             filled: true,
             fillColor: enabled ? Colors.white : Colors.grey.shade200,
@@ -186,13 +345,8 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
       height: 50,
       child: Container(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent],
-          ),
+          gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent]),
           borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
-          ],
         ),
         child: ElevatedButton(
           onPressed: _isSaving ? null : _saveProfile,

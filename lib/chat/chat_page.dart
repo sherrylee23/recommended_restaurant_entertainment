@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'chat_detail.dart';
 import 'package:intl/intl.dart';
+import 'view_business_profile.dart';
+import 'user_booking_history.dart';
 
 class UserInboxPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -33,12 +35,29 @@ class _UserInboxPageState extends State<UserInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      // extendBodyBehindAppBar: true, // Removed to prevent overlap with title
+      // Update your UserInboxPage AppBar code:
       appBar: AppBar(
         title: const Text("Messages", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.blue.shade100,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          // --- ADD THIS ACTION ---
+          IconButton(
+            icon: const Icon(Icons.event_note, color: Colors.blueAccent),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => UserBookingHistoryPage(userData: widget.userData),
+                ),
+              );
+            },
+            tooltip: "My Bookings",
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -47,34 +66,32 @@ class _UserInboxPageState extends State<UserInboxPage> {
             colors: [Colors.blue.shade100, Colors.purple.shade50],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: TextField(
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: InputDecoration(
-                    hintText: "Search businesses...",
-                    prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.9),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: Colors.blue.shade100),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Colors.blueAccent),
-                    ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: TextField(
+                onChanged: (value) => setState(() => _searchQuery = value),
+                decoration: InputDecoration(
+                  hintText: "Search businesses...",
+                  prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.9),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide(color: Colors.blue.shade100),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: const BorderSide(color: Colors.blueAccent),
                   ),
                 ),
               ),
-              Expanded(
-                child: _searchQuery.isEmpty ? _buildChatHistory() : _buildSearchResults(),
-              ),
-            ],
-          ),
+            ),
+            Expanded(
+              child: _searchQuery.isEmpty ? _buildChatHistory() : _buildSearchResults(),
+            ),
+          ],
         ),
       ),
     );
@@ -90,6 +107,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
         }
 
         final allMessages = snapshot.data!;
+        // Get unique business IDs from the message history
         final businessIds = allMessages
             .map((m) => m['is_from_business'] ? m['sender_id'] : m['receiver_id'])
             .toSet().where((id) => id != userId).toList();
@@ -129,18 +147,35 @@ class _UserInboxPageState extends State<UserInboxPage> {
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: Stack(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.blue.shade50,
-                  child: const Icon(LucideIcons.store, color: Colors.blueAccent),
-                ),
-                if (hasUnread)
-                  Positioned(
-                    right: 0, top: 0,
-                    child: Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2))),
+            // --- UPDATE: Profile Image is now clickable ---
+            leading: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UserViewBusinessPage(
+                      businessData: business,
+                      userData: widget.userData,
+                    ),
                   ),
-              ],
+                );
+              },
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.blue.shade50,
+                    child: const Icon(LucideIcons.store, color: Colors.blueAccent),
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      right: 0, top: 0,
+                      child: Container(
+                          width: 12, height: 12,
+                          decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2))
+                      ),
+                    ),
+                ],
+              ),
             ),
             title: Text(business['business_name'] ?? "Business",
                 style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
@@ -156,6 +191,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
               ],
             ),
             onTap: () async {
+              // Mark as read when entering chat
               await _supabase.from('messages').update({'is_read': true}).eq('receiver_id', userId).eq('sender_id', bId);
               if (mounted) {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)));
@@ -167,7 +203,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  // Missing _buildSearchResults Logic
   Widget _buildSearchResults() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _supabase.from('business_profiles').select().ilike('business_name', '%$_searchQuery%'),
@@ -193,7 +228,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  // Missing Helper to build a tile from search data
   Widget _buildBusinessTileFromData(Map<String, dynamic> business) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -204,12 +238,26 @@ class _UserInboxPageState extends State<UserInboxPage> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: Colors.white,
-          child: const Icon(LucideIcons.plus, color: Colors.blueAccent, size: 20),
+        // --- UPDATE: Search icon also leads to profile ---
+        leading: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => UserViewBusinessPage(
+                  businessData: business,
+                  userData: widget.userData,
+                ),
+              ),
+            );
+          },
+          child: CircleAvatar(
+            backgroundColor: Colors.white,
+            child: const Icon(LucideIcons.store, color: Colors.blueAccent, size: 20),
+          ),
         ),
         title: Text(business['business_name'] ?? "Business", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: const Text("Start a new conversation", style: TextStyle(fontSize: 12)),
+        subtitle: const Text("View profile or message", style: TextStyle(fontSize: 12)),
         trailing: const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
         onTap: () {
           Navigator.push(

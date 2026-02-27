@@ -26,6 +26,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
   bool _isLiked = false;
   int _totalLikes = 0;
 
+  final TextEditingController _commentController = TextEditingController();
+  List<Map<String, dynamic>> _comments = [];
+  bool _isLoadingComments = false;
+
   @override
   void initState() {
     super.initState();
@@ -33,21 +37,101 @@ class _PostDetailPageState extends State<PostDetailPage> {
     _totalLikes = _currentPost['likes_count'] ?? 0;
     _fetchLikeData();
     _recordViewForAI();
+    _fetchComments();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
-  // --- AI ANALYSIS LOGIC ---
+  // --- LOGIC: RESTRICT COMMENTS BASED ON USER STATUS ---
+  Future<void> _submitComment() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || widget.viewerProfileId == null) return;
+
+    final supabase = Supabase.instance.client;
+
+    try {
+      // 1. Fetch User Registration Date
+      final userResponse = await supabase
+          .from('profiles')
+          .select('created_at')
+          .eq('id', widget.viewerProfileId)
+          .single();
+
+      final DateTime joinedDate = DateTime.parse(userResponse['created_at']);
+      final int daysJoined = DateTime.now().difference(joinedDate).inDays;
+
+      int limit;
+      String statusLabel;
+
+      // Logic based on your requirements:
+      if (daysJoined >= 365) {
+        limit = -1; // Trusted: No restrict
+        statusLabel = "Trusted User";
+      } else if (daysJoined >= 14) {
+        limit = 15; // Active: 15 per day
+        statusLabel = "Active User";
+      } else {
+        limit = 3;  // New: 3 per day
+        statusLabel = "New User";
+      }
+
+      // 2. Check current day usage if restricted
+      if (limit != -1) {
+        final now = DateTime.now().toUtc();
+        final startOfToday = DateTime(now.year, now.month, now.day).toIso8601String();
+
+        // FIXED SYNTAX HERE:
+        // We use .count(CountOption.exact) at the end of the query.
+        // This returns a PostgrestResponse which HAS the .count property.
+        final response = await supabase
+            .from('comments')
+            .select('id')
+            .eq('profile_id', widget.viewerProfileId)
+            .gte('created_at', startOfToday)
+            .count(CountOption.exact);
+
+        final int currentCount = response.count;
+
+        if (currentCount >= limit) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Limit reached! $statusLabel can only comment $limit times per day."),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // 3. Proceed with Insertion
+      await supabase.from('comments').insert({
+        'post_id': _currentPost['id'],
+        'profile_id': widget.viewerProfileId,
+        'content': text,
+      });
+
+      _commentController.clear();
+      FocusScope.of(context).unfocus();
+      _fetchComments();
+
+    } catch (e) {
+      debugPrint("Comment Submit Error: $e");
+    }
+  }
+
   Future<void> _recordViewForAI() async {
     if (widget.viewerProfileId == null) return;
     final List<dynamic> categories = _currentPost['category_names'] ?? [];
     try {
-      final supabase = Supabase.instance.client;
-      await supabase.rpc('increment_interest_counts', params: {
+      await Supabase.instance.client.rpc('increment_interest_counts', params: {
         'p_user_id': widget.viewerProfileId,
         'categories': categories,
       });
@@ -56,16 +140,35 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  // --- LIKE LOGIC ---
+  Future<void> _fetchComments() async {
+    setState(() => _isLoadingComments = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('comments')
+          .select('*, profiles(username, profile_url)')
+          .eq('post_id', _currentPost['id'])
+          .order('created_at', ascending: true);
+
+      if (mounted) {
+        setState(() {
+          _comments = List<Map<String, dynamic>>.from(data);
+          _isLoadingComments = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Comment Fetch Error: $e");
+      if (mounted) setState(() => _isLoadingComments = false);
+    }
+  }
+
   Future<void> _fetchLikeData() async {
     try {
-      final supabase = Supabase.instance.client;
       final postId = _currentPost['id'];
-      final countRes = await supabase.from('likes').select('*').eq('post_id', postId).count(CountOption.exact);
+      final countRes = await Supabase.instance.client.from('likes').select('*').eq('post_id', postId).count(CountOption.exact);
 
       bool userHasLiked = false;
       if (widget.viewerProfileId != null) {
-        final existingLike = await supabase.from('likes').select().eq('post_id', postId).eq('profile_id', widget.viewerProfileId).maybeSingle();
+        final existingLike = await Supabase.instance.client.from('likes').select().eq('post_id', postId).eq('profile_id', widget.viewerProfileId).maybeSingle();
         userHasLiked = existingLike != null;
       }
       if (mounted) {
@@ -80,10 +183,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _toggleLike() async {
-    if (widget.viewerProfileId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please log in to like posts")));
-      return;
-    }
+    if (widget.viewerProfileId == null) return;
     final supabase = Supabase.instance.client;
     final postId = _currentPost['id'];
     setState(() {
@@ -101,7 +201,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  // --- SUPABASE DELETE LOGIC ---
   Future<void> _deletePost() async {
     try {
       await Supabase.instance.client.from('posts').delete().eq('id', _currentPost['id']);
@@ -135,29 +234,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Determine if the viewer is the owner of the post
     final dynamic postOwnerId = _currentPost['profile_id'];
-    final bool isOwner = widget.viewerProfileId != null &&
-        postOwnerId != null &&
-        widget.viewerProfileId.toString() == postOwnerId.toString();
-
+    final bool isOwner = widget.viewerProfileId != null && postOwnerId != null && widget.viewerProfileId.toString() == postOwnerId.toString();
     final List<dynamic> mediaUrls = _currentPost['media_urls'] ?? [];
     final int rating = (_currentPost['rating'] ?? 0).toInt();
-
-    final String? authorPicture = _currentPost['profiles'] != null
-        ? _currentPost['profiles']['profile_url']
-        : _currentPost['profile_url'];
-
-    final String createdAtRaw = _currentPost['created_at'] ?? '';
-    String formattedDate = 'Unknown date';
-    if (createdAtRaw.isNotEmpty) {
-      try {
-        final DateTime dateTime = DateTime.parse(createdAtRaw).toLocal();
-        formattedDate = "${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}  ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-      } catch (e) {
-        debugPrint("Error parsing date: $e");
-      }
-    }
+    final String? authorPicture = _currentPost['profiles'] != null ? _currentPost['profiles']['profile_url'] : _currentPost['profile_url'];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -169,148 +250,77 @@ class _PostDetailPageState extends State<PostDetailPage> {
         iconTheme: const IconThemeData(color: Colors.black87, size: 22),
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.blue.shade50,
-              backgroundImage: (authorPicture != null && authorPicture.isNotEmpty)
-                  ? NetworkImage(authorPicture)
-                  : null,
-              child: (authorPicture == null || authorPicture.isEmpty)
-                  ? const Icon(Icons.person, size: 20, color: Colors.blueAccent)
-                  : null,
-            ),
+            CircleAvatar(radius: 18, backgroundColor: Colors.blue.shade50, backgroundImage: (authorPicture != null && authorPicture.isNotEmpty) ? NetworkImage(authorPicture) : null, child: (authorPicture == null || authorPicture.isEmpty) ? const Icon(Icons.person, size: 20, color: Colors.blueAccent) : null),
             const SizedBox(width: 10),
-            Text(
-              widget.userName,
-              style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+            Text(widget.userName, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
         actions: [
-          // MODIFIED: Report Button - Only shows if the user is NOT the owner
-          if (!isOwner)
-            IconButton(
-              icon: const Icon(Icons.report_problem_outlined, color: Colors.redAccent),
-              tooltip: 'Report Post',
-              onPressed: () {
-                if (widget.viewerProfileId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Please log in to report content")),
-                  );
-                  return;
-                }
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ReportPage(
-                      post: _currentPost,
-                      viewerProfileId: widget.viewerProfileId,
-                    ),
-                  ),
-                );
-              },
-            ),
-
-          // Three-dot menu for Edit/Delete - Only shows for the owner
-          if (isOwner)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.black87),
-              onSelected: (value) {
-                if (value == 'edit') _navigateToEdit();
-                else if (value == 'delete') _showDeleteConfirmation();
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 10), Text("Edit Post")])
-                ),
-                const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(children: [Icon(Icons.delete_outline, size: 20, color: Colors.redAccent), SizedBox(width: 10), Text("Delete Post", style: TextStyle(color: Colors.redAccent))])
-                ),
-              ],
-            ),
+          if (!isOwner) IconButton(icon: const Icon(Icons.report_problem_outlined, color: Colors.redAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportPage(post: _currentPost, viewerProfileId: widget.viewerProfileId)))),
+          if (isOwner) PopupMenuButton<String>(icon: const Icon(Icons.more_vert, color: Colors.black87), onSelected: (value) => value == 'edit' ? _navigateToEdit() : _showDeleteConfirmation(), itemBuilder: (context) => [const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 10), Text("Edit Post")])), const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: Colors.redAccent), SizedBox(width: 10), Text("Delete Post", style: TextStyle(color: Colors.redAccent))]))]),
         ],
       ),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.infinity,
-              height: MediaQuery.of(context).padding.top + kToolbarHeight,
-              decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [Colors.blue.shade100, Colors.purple.shade50])),
-            ),
-            if (mediaUrls.isNotEmpty)
-              Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  SizedBox(
-                    height: 350,
-                    child: PageView.builder(
-                      controller: _pageController,
-                      onPageChanged: (index) => setState(() => _currentPage = index),
-                      itemCount: mediaUrls.length,
-                      itemBuilder: (context, index) => Image.network(mediaUrls[index], fit: BoxFit.cover),
-                    ),
-                  ),
-                  if (mediaUrls.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 15),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(mediaUrls.length, (index) {
-                          return AnimatedContainer(duration: const Duration(milliseconds: 300), margin: const EdgeInsets.symmetric(horizontal: 4), height: 6, width: _currentPage == index ? 10 : 6, decoration: BoxDecoration(color: _currentPage == index ? Colors.blueAccent : Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(4)));
-                        }),
-                      ),
-                    ),
-                ],
-              ),
+            Container(height: MediaQuery.of(context).padding.top + kToolbarHeight, decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.blue.shade100, Colors.purple.shade50]))),
+            if (mediaUrls.isNotEmpty) Stack(alignment: Alignment.bottomCenter, children: [SizedBox(height: 350, child: PageView.builder(controller: _pageController, onPageChanged: (i) => setState(() => _currentPage = i), itemCount: mediaUrls.length, itemBuilder: (context, i) => Image.network(mediaUrls[i], fit: BoxFit.cover))), if (mediaUrls.length > 1) Padding(padding: const EdgeInsets.only(bottom: 15), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(mediaUrls.length, (i) => AnimatedContainer(duration: const Duration(milliseconds: 300), margin: const EdgeInsets.symmetric(horizontal: 4), height: 6, width: _currentPage == i ? 10 : 6, decoration: BoxDecoration(color: _currentPage == i ? Colors.blueAccent : Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(4))))))]),
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(_currentPost['title'] ?? '', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))),
-                      Row(
-                        children: [
-                          IconButton(icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border, color: _isLiked ? Colors.red : Colors.grey), onPressed: _toggleLike),
-                          Text("$_totalLikes", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Row(children: List.generate(5, (index) => Icon(index < rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 20))),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text(_currentPost['title'] ?? '', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))), Row(children: [IconButton(icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border, color: _isLiked ? Colors.red : Colors.grey), onPressed: _toggleLike), Text("$_totalLikes", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))])]),
+                  Row(children: List.generate(5, (i) => Icon(i < rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 20))),
                   const SizedBox(height: 12),
-                  Text(_currentPost['description'] ?? 'No description provided.', style: const TextStyle(fontSize: 15, color: Colors.black87, height: 1.5)),
-                  const SizedBox(height: 18),
-                  if (_currentPost['location_name'] != null)
-                    Row(children: [const Icon(Icons.location_on, color: Colors.blueAccent, size: 18), const SizedBox(width: 6), Text(_currentPost['location_name'], style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w600, fontSize: 14))]),
-                  const Divider(height: 35, thickness: 0.8),
-                  const Text("Categories", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: (_currentPost['category_names'] as List? ?? []).map((cat) => Chip(label: Text(cat.toString()), backgroundColor: Colors.blue.shade50, side: BorderSide.none, padding: const EdgeInsets.symmetric(horizontal: 4), labelStyle: const TextStyle(color: Colors.blueAccent, fontSize: 12))).toList(),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Text("Posted on $formattedDate", style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic)),
-                    ],
-                  ),
+                  Text(_currentPost['description'] ?? '', style: const TextStyle(fontSize: 15, height: 1.5)),
+                  const Divider(height: 50),
+                  _buildCommentSection(),
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCommentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Comments", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        const SizedBox(height: 16),
+        _isLoadingComments
+            ? const Center(child: CircularProgressIndicator())
+            : ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _comments.length,
+          itemBuilder: (context, index) {
+            final comment = _comments[index];
+            final profile = comment['profiles'] ?? {};
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                children: [
+                  CircleAvatar(radius: 16, backgroundImage: (profile['profile_url'] != null) ? NetworkImage(profile['profile_url']) : null, child: (profile['profile_url'] == null) ? const Icon(Icons.person, size: 18) : null),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(profile['username'] ?? 'Anonymous', style: const TextStyle(fontWeight: FontWeight.bold)), Text(comment['content'] ?? '')])),
+                ],
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(child: TextField(controller: _commentController, decoration: InputDecoration(hintText: "Write a comment...", filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none)))),
+            const SizedBox(width: 8),
+            Container(decoration: BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [Colors.blue.shade400, Colors.purple.shade400])), child: IconButton(icon: const Icon(Icons.send, color: Colors.white, size: 18), onPressed: _submitComment)),
+          ],
+        ),
+      ],
     );
   }
 }

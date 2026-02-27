@@ -313,7 +313,7 @@ class UserProfilePageState extends State<UserProfilePage> {
             children: [
               Icon(Icons.auto_awesome, color: Colors.blueAccent),
               SizedBox(width: 10),
-              Text("AI Personalized"),
+              Text("Personalized"),
             ],
           ),
         ),

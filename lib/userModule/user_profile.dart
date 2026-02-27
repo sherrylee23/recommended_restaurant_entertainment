@@ -168,7 +168,7 @@ class UserProfilePageState extends State<UserProfilePage> {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.68, // MATCHED: From Discover Page
+        childAspectRatio: 0.68,
       ),
       itemCount: _userPosts.length,
       itemBuilder: (context, index) {
@@ -205,10 +205,10 @@ class UserProfilePageState extends State<UserProfilePage> {
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(15), // MATCHED
+              borderRadius: BorderRadius.circular(15),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05), // MATCHED
+                  color: Colors.black.withOpacity(0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 4),
                 ),
@@ -217,7 +217,6 @@ class UserProfilePageState extends State<UserProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // MATCHED: Image Section using Expanded and BoxFit.cover
                 Expanded(
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
@@ -238,7 +237,6 @@ class UserProfilePageState extends State<UserProfilePage> {
                     ),
                   ),
                 ),
-                // MATCHED: Text and Stats Section
                 Padding(
                   padding: const EdgeInsets.all(10),
                   child: Column(
@@ -296,6 +294,14 @@ class UserProfilePageState extends State<UserProfilePage> {
           Navigator.push(context,
               MaterialPageRoute(
                   builder: (context) => HelpCenterPage(userData: widget.userData)));
+        } else if (value == 'my_reports') {
+          // Navigate to report status list
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => MyReportListPage(userData: widget.userData),
+            ),
+          );
         } else if (value == 'personalized') {
           final newInterests = await Navigator.push(
             context,
@@ -316,6 +322,16 @@ class UserProfilePageState extends State<UserProfilePage> {
               Icon(Icons.auto_awesome, color: Colors.blueAccent),
               SizedBox(width: 10),
               Text("AI Personalized"),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'my_reports',
+          child: Row(
+            children: [
+              Icon(Icons.assignment_turned_in_outlined, color: Colors.blueAccent),
+              SizedBox(width: 10),
+              Text("My Reports"),
             ],
           ),
         ),
@@ -348,8 +364,13 @@ class UserProfilePageState extends State<UserProfilePage> {
     Color genderColor = Colors.grey;
     final String gender = (widget.userData['gender'] ?? "").toString().toLowerCase();
     final String? profileUrl = widget.userData['profile_url'];
-    if (gender == "female") { genderIcon = Icons.female; genderColor = Colors.pinkAccent; }
-    else if (gender == "male") { genderIcon = Icons.male; genderColor = Colors.blueAccent; }
+    if (gender == "female") {
+      genderIcon = Icons.female;
+      genderColor = Colors.pinkAccent;
+    } else if (gender == "male") {
+      genderIcon = Icons.male;
+      genderColor = Colors.blueAccent;
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -413,5 +434,98 @@ class _StatItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(count, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))]);
+  }
+}
+
+// --- MyReportListPage Implementation ---
+
+class MyReportListPage extends StatelessWidget {
+  final Map<String, dynamic> userData;
+  const MyReportListPage({super.key, required this.userData});
+
+  @override
+  Widget build(BuildContext context) {
+    final supabase = Supabase.instance.client;
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text("My Reports Status", style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade100, Colors.purple.shade50],
+          ),
+        ),
+        child: SafeArea(
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: supabase
+                .from('business_reports')
+                .select()
+                .eq('profile_id', userData['id'])
+                .order('created_at', ascending: false),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No reports found."));
+
+              final reports = snapshot.data!;
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: reports.length,
+                itemBuilder: (context, index) {
+                  final report = reports[index];
+                  final bool isResolved = report['status'] == 'resolved';
+
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    child: ExpansionTile(
+                      leading: Icon(
+                        isResolved ? Icons.check_circle : Icons.pending,
+                        color: isResolved ? Colors.green : Colors.orange,
+                      ),
+                      title: Text(report['business_name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text("Status: ${report['status'].toString().toUpperCase()}"),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("Your Description:", style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text(report['description']),
+                              if (isResolved && report['admin_feedback'] != null) ...[
+                                const Divider(),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    "Admin Reply: ${report['admin_feedback']}",
+                                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 }

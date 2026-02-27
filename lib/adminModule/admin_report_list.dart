@@ -13,21 +13,34 @@ class _AdminReportListPageState extends State<AdminReportListPage> {
   final _supabase = Supabase.instance.client;
 
   // Function for Admin to provide feedback and resolve the report
+  // Inside _AdminReportListPageState
   void _showFeedbackDialog(Map<String, dynamic> report) {
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("Reply to ${report['user_email']}"),
-        content: TextField(
-            controller: controller,
-            maxLines: 3,
-            decoration: const InputDecoration(hintText: "Enter resolution or feedback...")
+        title: Text("Reply to Complaint"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Business: ${report['business_name']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  hintText: "Enter resolution or feedback...",
+                  border: OutlineInputBorder(),
+                )
+            ),
+          ],
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
+              // Updates the report status and adds admin feedback [cite: 37]
               await _supabase.from('business_reports').update({
                 'admin_feedback': controller.text.trim(),
                 'status': 'resolved',
@@ -35,7 +48,7 @@ class _AdminReportListPageState extends State<AdminReportListPage> {
 
               if (mounted) {
                 Navigator.pop(context);
-                setState(() {}); // Refresh the list
+                setState(() {}); // Refresh the list to show the resolved status [cite: 38]
               }
             },
             child: const Text("Send Feedback"),

@@ -34,27 +34,61 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
     return Scaffold(
-      // extendBodyBehindAppBar: true, // Removed to prevent overlap with title
-      // Update your UserInboxPage AppBar code:
       appBar: AppBar(
         title: const Text("Messages", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue.shade100,
         elevation: 0,
         centerTitle: true,
         actions: [
-          // --- ADD THIS ACTION ---
-          IconButton(
-            icon: const Icon(Icons.event_note, color: Colors.blueAccent),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => UserBookingHistoryPage(userData: widget.userData),
-                ),
+          // --- FIXED RED DOT NOTIFICATION LOGIC ---
+          StreamBuilder<List<Map<String, dynamic>>>(
+            // We only filter by user_id here (Single filter for stream compatibility)
+            stream: _supabase
+                .from('bookings')
+                .stream(primaryKey: ['id'])
+                .eq('user_id', widget.userData['id'].toString()),
+            builder: (context, snapshot) {
+              // Now we check for 'today' locally in the builder
+              bool hasTodayBooking = false;
+              if (snapshot.hasData) {
+                hasTodayBooking = snapshot.data!.any((b) => b['booking_date'] == today);
+              }
+
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.event_note, color: Colors.blueAccent),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => UserBookingHistoryPage(userData: widget.userData),
+                        ),
+                      );
+                    },
+                    tooltip: "My Bookings",
+                  ),
+                  if (hasTodayBooking)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
-            tooltip: "My Bookings",
           ),
           const SizedBox(width: 8),
         ],
@@ -107,7 +141,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
         }
 
         final allMessages = snapshot.data!;
-        // Get unique business IDs from the message history
         final businessIds = allMessages
             .map((m) => m['is_from_business'] ? m['sender_id'] : m['receiver_id'])
             .toSet().where((id) => id != userId).toList();
@@ -147,7 +180,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            // --- UPDATE: Profile Image is now clickable ---
             leading: GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -191,7 +223,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
               ],
             ),
             onTap: () async {
-              // Mark as read when entering chat
               await _supabase.from('messages').update({'is_read': true}).eq('receiver_id', userId).eq('sender_id', bId);
               if (mounted) {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)));
@@ -238,7 +269,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        // --- UPDATE: Search icon also leads to profile ---
         leading: GestureDetector(
           onTap: () {
             Navigator.push(

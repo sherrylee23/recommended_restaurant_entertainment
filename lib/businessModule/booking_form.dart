@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 class BookingFormPage extends StatefulWidget {
   final dynamic businessId;
@@ -24,21 +25,38 @@ class _BookingFormPageState extends State<BookingFormPage> {
   final _paxController = TextEditingController();
   final _noteController = TextEditingController();
 
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
-  TimeOfDay _selectedTime = const TimeOfDay(hour: 19, minute: 0);
+  // 1. Change variables to nullable
+  DateTime? _selectedDate;
+  TimeOfDay? _selectedTime;
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 90)),
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
 
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 19, minute: 0),
+    );
+    if (picked != null) setState(() => _selectedTime = picked);
+  }
+
   Future<void> _submitBooking() async {
+    // 2. Add validation to ensure Date and Time are not null
     if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedDate == null || _selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select both date and time")),
+      );
+      return;
+    }
 
     try {
       await Supabase.instance.client.from('bookings').insert({
@@ -47,8 +65,8 @@ class _BookingFormPageState extends State<BookingFormPage> {
         'customer_name': _nameController.text,
         'phone_number': _phoneController.text,
         'pax': int.parse(_paxController.text),
-        'booking_date': _selectedDate.toIso8601String().split('T')[0],
-        'booking_time': "${_selectedTime.hour}:${_selectedTime.minute.toString().padLeft(2, '0')}",
+        'booking_date': _selectedDate!.toIso8601String().split('T')[0],
+        'booking_time': "${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}",
         'notes': _noteController.text,
       });
 
@@ -93,13 +111,30 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 validator: (v) => v!.isEmpty ? "Required" : null,
               ),
               const SizedBox(height: 15),
+
+              // 3. Conditional Text for Date
               ListTile(
-                title: Text("Date: ${_selectedDate.toLocal()}".split(' ')[0]),
+                title: Text(_selectedDate == null
+                    ? "Select Date"
+                    : "Date: ${DateFormat('yyyy-MM-dd').format(_selectedDate!)}"),
                 trailing: const Icon(Icons.calendar_month),
                 tileColor: Colors.grey.shade100,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 onTap: _pickDate,
               ),
+              const SizedBox(height: 10),
+
+              // 4. Conditional Text for Time
+              ListTile(
+                title: Text(_selectedTime == null
+                    ? "Select Time"
+                    : "Time: ${_selectedTime!.format(context)}"),
+                trailing: const Icon(Icons.access_time),
+                tileColor: Colors.grey.shade100,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                onTap: _pickTime,
+              ),
+
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

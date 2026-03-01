@@ -27,23 +27,21 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
   @override
   void initState() {
     super.initState();
-    // 1. Initialize the Model (Replace with your actual Gemini API Key)
+    // 1. Initialize the Model
+    // Replace with your actual Gemini API Key
     _model = GenerativeModel(
       model: 'gemini-1.5-flash',
-      apiKey: 'YOUR_GEMINI_API_KEY_HERE',
+      apiKey: 'AIzaSyBdCbErSPe0YvlPatM_PsOFb0Hc9TWwqvg',
     );
 
-    // 2. Start session with detailed instructions about user levels & restrictions
+    // 2. Start a session with a "System Instruction"
     _chatSession = _model.startChat(
       history: [
         Content.text(
-            "User's name is ${widget.userData['username'] ?? 'Guest'}. "
-                "You are Nomi, a helpful assistant for a restaurant app. "
-                "Explain user levels and COMMENT RESTRICTIONS if asked: "
-                "1. New User (Joined < 14 days): Restricted to 3 comments per day. "
-                "2. Active User (Joined 14-365 days): Restricted to 10 comments per day. "
-                "3. Trusted User (Joined > 365 days): No restriction (Unlimited comments). "
-                "If a user mentions a complaint, bad service, or reporting, tell them you can provide a report form."
+          "User's name is ${widget.userData['name'] ?? 'Guest'}. "
+          "You are Nomi, a helpful assistant for a restaurant app. "
+          "If a user mentions a complaint, bad service, or reporting, "
+          "tell them you can provide a report form.",
         ),
       ],
     );
@@ -67,48 +65,41 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
       final response = await _chatSession.sendMessage(Content.text(rawText));
       final botText = response.text ?? "";
 
-      // Check for report-related keywords to show the action button
+      // Check if either the AI or the User mentioned report/complaint
       bool needsReport =
           botText.toLowerCase().contains("report form") ||
-              lowercaseText.contains("report") ||
-              lowercaseText.contains("complaint");
+          lowercaseText.contains("report") ||
+          lowercaseText.contains("complaint");
 
       _addBotMessage(botText, showAction: needsReport);
-
     } catch (e) {
+      // 2. FALLBACK: If AI fails, Nomi still answers using logic below
       debugPrint("AI Error: $e");
 
-      // 2. FALLBACK LOGIC: If AI fails or is offline
-      if (lowercaseText.contains("comment") && (lowercaseText.contains("limit") || lowercaseText.contains("restrict"))) {
-        _addBotMessage(
-            "To maintain quality reviews, we have daily limits: \n"
-                "• New Users: 3 comments/day\n"
-                "• Active Users: 10 comments/day\n"
-                "• Trusted Users: Unlimited"
-        );
-      }
-      else if (lowercaseText.contains("new user")) {
-        _addBotMessage(
-            "New Users (joined < 14 days) are restricted to 3 review comments per day to prevent spam."
-        );
-      }
-      else if (lowercaseText.contains("active user")) {
-        _addBotMessage(
-            "Active Users (joined > 14 days) have an increased limit of 10 review comments per day!"
-        );
-      }
-      else if (lowercaseText.contains("report") || lowercaseText.contains("complaint")) {
+      if (lowercaseText.contains("report") ||
+          lowercaseText.contains("complaint")) {
         _addBotMessage(
           "I'm sorry you're having trouble. Please fill out our official report form so we can help.",
           showAction: true,
         );
-      }
-      else if (lowercaseText.contains("hello") || lowercaseText.contains("hi")) {
-        _addBotMessage("Hi! I'm Nomi. How can I help you today?");
-      }
-      else {
+      } else if (lowercaseText.contains("hello") ||
+          lowercaseText.contains("hi") ||
+          lowercaseText.contains("Hi") ||
+          lowercaseText.contains("Hello")) {
         _addBotMessage(
-          "I'm currently having trouble reaching my AI brain, but you can ask me about 'comment limits' or 'reporting' a business!",
+          "Hi! I'm Nomi. How can I help you with our restaurant app today?",
+        );
+      } else if (lowercaseText.contains("bye")) {
+        _addBotMessage(
+          "Bye, Have a nice day! If you need help again, just come back.",
+        );
+      } else if (lowercaseText.contains("thank you") ||
+          lowercaseText.contains("thanks")) {
+        _addBotMessage("You're welcome.");
+      } else {
+        // General answer for other questions when offline
+        _addBotMessage(
+          "I'm currently having trouble reaching my AI brain, but you can ask me to 'report' a business if you need help!",
         );
       }
     } finally {
@@ -202,24 +193,35 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
-        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment: isUser
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!isUser) _buildAvatar(isBot: true),
               const SizedBox(width: 8),
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: isUser ? const Color(0xFF4A90E2) : Colors.white.withOpacity(0.9),
+                    color: isUser
+                        ? const Color(0xFF4A90E2)
+                        : Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Text(
                     msg["text"],
-                    style: TextStyle(color: isUser ? Colors.white : Colors.black87),
+                    style: TextStyle(
+                      color: isUser ? Colors.white : Colors.black87,
+                    ),
                   ),
                 ),
               ),
@@ -237,7 +239,8 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
                     MaterialPageRoute(
                       builder: (context) => ReportBusinessPage(
                         userData: widget.userData,
-                        businessName: null,
+                        businessName:
+                            null, // Let the user pick from your dynamic list
                       ),
                     ),
                   );
@@ -247,7 +250,9 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.blueAccent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
             ),
@@ -261,14 +266,25 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
       return CircleAvatar(
         radius: 16,
         backgroundColor: Colors.purple.shade100,
-        child: const Text("N", style: TextStyle(fontSize: 12, color: Colors.purple, fontWeight: FontWeight.bold)),
+        child: const Text(
+          "N",
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.purple,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       );
     } else {
       final String? profileUrl = widget.userData['profile_url'];
       return CircleAvatar(
         radius: 16,
-        backgroundImage: (profileUrl != null && profileUrl.isNotEmpty) ? NetworkImage(profileUrl) : null,
-        child: (profileUrl == null || profileUrl.isEmpty) ? const Icon(Icons.person, size: 16) : null,
+        backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
+            ? NetworkImage(profileUrl)
+            : null,
+        child: (profileUrl == null || profileUrl.isEmpty)
+            ? const Icon(Icons.person, size: 16)
+            : null,
       );
     }
   }
@@ -282,12 +298,18 @@ class _ChatNomiPageState extends State<ChatNomiPage> {
           Expanded(
             child: TextField(
               controller: _controller,
-              decoration: const InputDecoration(hintText: "Ask Nomi anything...", border: InputBorder.none),
+              decoration: const InputDecoration(
+                hintText: "Ask Nomi anything...",
+                border: InputBorder.none,
+              ),
               onSubmitted: (_) => _handleSend(),
             ),
           ),
           IconButton(
-            icon: Icon(Icons.send, color: _isTyping ? Colors.grey : const Color(0xFF4A90E2)),
+            icon: Icon(
+              Icons.send,
+              color: _isTyping ? Colors.grey : const Color(0xFF4A90E2),
+            ),
             onPressed: _handleSend,
           ),
         ],

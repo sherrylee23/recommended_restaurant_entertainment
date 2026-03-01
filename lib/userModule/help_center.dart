@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:recommended_restaurant_entertainment/userModule/feedback.dart';
-// Ensure the path to your ChatNomiPage is correct
 import 'package:recommended_restaurant_entertainment/customer_service/chatbot.dart';
 
 class HelpCenterPage extends StatelessWidget {
@@ -22,6 +21,7 @@ class HelpCenterPage extends StatelessWidget {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
       ),
       body: Container(
         width: double.infinity,
@@ -31,7 +31,7 @@ class HelpCenterPage extends StatelessWidget {
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             colors: [
-              Colors.blue.shade100, //
+              Colors.blue.shade100,
               Colors.purple.shade50,
             ],
           ),
@@ -39,21 +39,18 @@ class HelpCenterPage extends StatelessWidget {
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
-            child: Column(
+            child: Column( // Fixed: Restored missing Column
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionHeader("Guess what you want to ask"),
-                _buildSectionCard([
-                  _buildHelpItem("How to chat?", context),
-                  _buildHelpItem("How to follow user?", context),
-                  _buildHelpItem("How to edit my profile?", context),
-                ]),
                 const SizedBox(height: 24),
                 _buildSectionHeader("Support"),
                 _buildSectionCard([
-                  // Pass context correctly to the support item
+                  // Chat with Nomi Item
                   _buildSupportItem("Chat with Nomi", Icons.chat_bubble_outline, context),
+
                   const Divider(height: 1, indent: 16, endIndent: 16),
+
+                  // Feedback Item
                   ListTile(
                     title: const Text("Feedback", style: TextStyle(fontSize: 16)),
                     trailing: const Icon(
@@ -71,6 +68,9 @@ class HelpCenterPage extends StatelessWidget {
                     },
                   ),
                 ]),
+
+                const SizedBox(height: 24),
+
               ],
             ),
           ),
@@ -98,7 +98,7 @@ class HelpCenterPage extends StatelessWidget {
   Widget _buildSectionCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85), //
+        color: Colors.white.withOpacity(0.85),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -121,12 +121,11 @@ class HelpCenterPage extends StatelessWidget {
         color: Colors.black54,
       ),
       onTap: () {
-        // Handle help topic navigation
+        // Implement FAQ navigation here if needed
       },
     );
   }
 
-  // FIXED: Now correctly passes userData to ChatNomiPage
   Widget _buildSupportItem(String title, IconData icon, BuildContext context) {
     return ListTile(
       title: Text(title, style: const TextStyle(fontSize: 16)),
@@ -135,7 +134,7 @@ class HelpCenterPage extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            // Pass the required userData so Nomi knows who is chatting
+            // Correctly passing userData to Chatbot
             builder: (context) => ChatNomiPage(userData: userData),
           ),
         );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recommended_restaurant_entertainment/postModule/edit_post.dart';
 import 'package:recommended_restaurant_entertainment/reportModule/report.dart';
+import 'package:intl/intl.dart'; // Make sure this is in your pubspec.yaml
 
 class PostDetailPage extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -47,6 +48,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
     super.dispose();
   }
 
+  // Helper to format the creation date
+  String _formatDate(String? timestamp) {
+    if (timestamp == null) return "";
+    try {
+      final DateTime dt = DateTime.parse(timestamp).toLocal();
+      return DateFormat('MMM d, yyyy • hh:mm a').format(dt);
+    } catch (e) {
+      return "";
+    }
+  }
+
   // --- LOGIC: RESTRICT COMMENTS BASED ON USER STATUS ---
   Future<void> _submitComment() async {
     final text = _commentController.text.trim();
@@ -55,7 +67,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     final supabase = Supabase.instance.client;
 
     try {
-      // 1. Fetch User Registration Date
       final userResponse = await supabase
           .from('profiles')
           .select('created_at')
@@ -68,26 +79,21 @@ class _PostDetailPageState extends State<PostDetailPage> {
       int limit;
       String statusLabel;
 
-      // Logic based on your requirements:
       if (daysJoined >= 365) {
-        limit = -1; // Trusted: No restrict
+        limit = -1;
         statusLabel = "Trusted User";
       } else if (daysJoined >= 14) {
-        limit = 15; // Active: 15 per day
+        limit = 15;
         statusLabel = "Active User";
       } else {
-        limit = 3;  // New: 3 per day
+        limit = 3;
         statusLabel = "New User";
       }
 
-      // 2. Check current day usage if restricted
       if (limit != -1) {
         final now = DateTime.now().toUtc();
         final startOfToday = DateTime(now.year, now.month, now.day).toIso8601String();
 
-        // FIXED SYNTAX HERE:
-        // We use .count(CountOption.exact) at the end of the query.
-        // This returns a PostgrestResponse which HAS the .count property.
         final response = await supabase
             .from('comments')
             .select('id')
@@ -111,7 +117,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
         }
       }
 
-      // 3. Proceed with Insertion
       await supabase.from('comments').insert({
         'post_id': _currentPost['id'],
         'profile_id': widget.viewerProfileId,
@@ -132,10 +137,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
     final List<dynamic> categories = _currentPost['category_names'] ?? [];
 
-    // Normalize strings before sending to RPC
     final normalizedCategories = categories.map((c) {
-      String s = c.toString();
-      return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+      String s = c.toString().trim();
+      if (s.isEmpty) return s;
+      return s[0].toUpperCase() + s.substring(1).toLowerCase();
     }).toList();
 
     try {
@@ -235,16 +240,36 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
+  // --- MODIFIED: Ensure owner data is preserved after editing ---
   Future<void> _navigateToEdit() async {
-    final updatedData = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditPostPage(post: _currentPost)));
-    if (updatedData != null && updatedData is Map<String, dynamic>) setState(() { _currentPost = updatedData; });
+    final updatedData = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => EditPostPage(post: _currentPost))
+    );
+
+    if (updatedData != null && updatedData is Map<String, dynamic>) {
+      setState(() {
+        // We use the Spread Operator (...) to merge updatedData into _currentPost.
+        // This keeps important fields like 'profile_id' and 'profiles' intact,
+        // which ensures the 'isOwner' check remains true after the update.
+        _currentPost = {
+          ..._currentPost,
+          ...updatedData,
+        };
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Ownership check happens here
     final dynamic postOwnerId = _currentPost['profile_id'];
-    final bool isOwner = widget.viewerProfileId != null && postOwnerId != null && widget.viewerProfileId.toString() == postOwnerId.toString();
+    final bool isOwner = widget.viewerProfileId != null &&
+        postOwnerId != null &&
+        widget.viewerProfileId.toString() == postOwnerId.toString();
+
     final List<dynamic> mediaUrls = _currentPost['media_urls'] ?? [];
+    final List<dynamic> categories = _currentPost['category_names'] ?? [];
     final int rating = (_currentPost['rating'] ?? 0).toInt();
     final String? authorPicture = _currentPost['profiles'] != null ? _currentPost['profiles']['profile_url'] : _currentPost['profile_url'];
 
@@ -264,6 +289,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ],
         ),
         actions: [
+          // If the merge failed previously, isOwner would be false and show the report icon.
           if (!isOwner) IconButton(icon: const Icon(Icons.report_problem_outlined, color: Colors.redAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportPage(post: _currentPost, viewerProfileId: widget.viewerProfileId)))),
           if (isOwner) PopupMenuButton<String>(icon: const Icon(Icons.more_vert, color: Colors.black87), onSelected: (value) => value == 'edit' ? _navigateToEdit() : _showDeleteConfirmation(), itemBuilder: (context) => [const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_outlined, size: 20), SizedBox(width: 10), Text("Edit Post")])), const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, size: 20, color: Colors.redAccent), SizedBox(width: 10), Text("Delete Post", style: TextStyle(color: Colors.redAccent))]))]),
         ],
@@ -279,8 +305,39 @@ class _PostDetailPageState extends State<PostDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Expanded(child: Text(_currentPost['title'] ?? '', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))), Row(children: [IconButton(icon: Icon(_isLiked ? Icons.favorite : Icons.favorite_border, color: _isLiked ? Colors.red : Colors.grey), onPressed: _toggleLike), Text("$_totalLikes", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))])]),
+
+                  // DATE DISPLAY
+                  Text(
+                    _formatDate(_currentPost['created_at']),
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+
                   Row(children: List.generate(5, (i) => Icon(i < rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 20))),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
+
+                  // CATEGORY SECTION
+                  if (categories.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: categories.map((cat) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.blue.shade100),
+                          ),
+                          child: Text(
+                            cat.toString(),
+                            style: TextStyle(color: Colors.blue.shade700, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+
                   Text(_currentPost['description'] ?? '', style: const TextStyle(fontSize: 15, height: 1.5)),
                   const Divider(height: 50),
                   _buildCommentSection(),

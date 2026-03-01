@@ -27,18 +27,16 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
   void initState() {
     super.initState();
     _fetchCategoriesFromSupabase();
-    _fetchTopRankings(); // Load AI location rankings on startup
+    _fetchTopRankings();
   }
 
   // --- DATA FETCHING LOGIC ---
 
-  // Fetches unique categories used in the 'posts' table
   Future<void> _fetchCategoriesFromSupabase() async {
     try {
       final supabase = Supabase.instance.client;
       final data = await supabase.from('posts').select('category_names');
 
-      // Helper inside the method to match your search logic
       String toTitleCase(String text) => text.isEmpty
           ? text
           : text[0].toUpperCase() + text.substring(1).toLowerCase();
@@ -48,7 +46,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
         final List? categories = row['category_names'] as List?;
         if (categories != null) {
           for (var cat in categories) {
-            // Normalize here to prevent "Theme Park" vs "Theme park"
             uniqueCategories.add(toTitleCase(cat.toString().trim()));
           }
         }
@@ -66,19 +63,12 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     }
   }
 
-  // AI Module: Fetches top 5 locations based on average rating
   Future<void> _fetchTopRankings() async {
     try {
       final supabase = Supabase.instance.client;
-
-      // 1. Fetch ratings and locations from all posts
-      final data = await supabase
-          .from('posts')
-          .select('location_name, rating');
-
+      final data = await supabase.from('posts').select('location_name, rating');
       final List<Map<String, dynamic>> fetchedPosts = List<Map<String, dynamic>>.from(data);
 
-      // 2. AI Logic: Group all ratings by their location name
       Map<String, List<double>> locationGroups = {};
       for (var post in fetchedPosts) {
         String loc = post['location_name'] ?? 'Unknown Location';
@@ -86,7 +76,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
         locationGroups.putIfAbsent(loc, () => []).add(rate);
       }
 
-      // 3. Calculate the average rating for each unique location
       List<Map<String, dynamic>> rankedLocations = locationGroups.entries.map((entry) {
         double avg = entry.value.reduce((a, b) => a + b) / entry.value.length;
         return {
@@ -95,7 +84,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
         };
       }).toList();
 
-      // 4. Sort locations by highest average and take the top 5
       rankedLocations.sort((a, b) => b['avg_rating'].compareTo(a['avg_rating']));
 
       if (mounted) {
@@ -110,54 +98,15 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     }
   }
 
-  // --- SEARCH SUBMISSION LOGIC ---
+  // --- MODIFIED SEARCH SUBMISSION LOGIC ---
 
   Future<void> _submitSearch(String query) async {
     final String trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) return;
 
-    // Helper to force Title Case (e.g., "cafe" -> "Cafe")
-    String toTitleCase(String text) => text.isEmpty
-        ? text
-        : text[0].toUpperCase() + text.substring(1).toLowerCase();
+    // AI logic (increment_interest_counts) has been removed from here.
+    // Searching is now a neutral action that does not affect the user profile.
 
-    final supabase = Supabase.instance.client;
-
-    try {
-      final postData = await supabase
-          .from('posts')
-          .select('category_names')
-          .or('location_name.ilike.%$trimmedQuery%,title.ilike.%$trimmedQuery%')
-          .limit(10);
-
-      Set<String> categoriesToRecord = {};
-      for (var row in postData) {
-        final List? cats = row['category_names'] as List?;
-        if (cats != null) {
-          for (var c in cats) {
-            // Normalize here before adding to the Set
-            categoriesToRecord.add(toTitleCase(c.toString()));
-          }
-        }
-      }
-
-      if (categoriesToRecord.isNotEmpty) {
-        await supabase.rpc('increment_interest_counts', params: {
-          'p_user_id': widget.currentUserData['id'],
-          'categories': categoriesToRecord.toList(),
-        });
-      } else {
-        // Fallback: Normalize the direct search query as well
-        await supabase.rpc('increment_interest_counts', params: {
-          'p_user_id': widget.currentUserData['id'],
-          'categories': [toTitleCase(trimmedQuery)],
-        });
-      }
-    } catch (e) {
-      debugPrint("AI Learning Error: $e");
-    }
-
-    // Navigate to results as usual
     if (mounted) {
       Navigator.push(
         context,
@@ -190,7 +139,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
           decoration: InputDecoration(
             hintText: "Search location, title, or category...",
             border: InputBorder.none,
-            // ADDED: Search icon at the end of the text field
             suffixIcon: IconButton(
               icon: const Icon(LucideIcons.search, color: Colors.black, size: 25),
               onPressed: () => _submitSearch(_controller.text),
@@ -205,7 +153,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECTION 1: TOP RANKED LOCATIONS (AI MODULE) ---
             const Row(
               children: [
                 Icon(LucideIcons.trophy, color: Colors.orange, size: 20),
@@ -243,7 +190,7 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
                           const Icon(Icons.star, color: Colors.amber, size: 18),
                           const SizedBox(width: 4),
                           Text(
-                            shop['avg_rating'].toStringAsFixed(1), // Display average with 1 decimal place
+                            shop['avg_rating'].toStringAsFixed(1),
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                           ),
                         ],
@@ -256,7 +203,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
 
             const SizedBox(height: 30),
 
-            // --- SECTION 2: QUICK CATEGORIES ---
             const Text("Quick Categories",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),

@@ -10,7 +10,6 @@ import 'package:recommended_restaurant_entertainment/customer_service/my_report.
 
 class UserProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
-
   const UserProfilePage({super.key, required this.userData});
 
   @override
@@ -32,26 +31,19 @@ class UserProfilePageState extends State<UserProfilePage> {
   String _calculateStatus() {
     final String? createdAtRaw = widget.userData['created_at'];
     if (createdAtRaw == null) return "New Users";
-
     final DateTime createdAt = DateTime.parse(createdAtRaw);
     final int daysJoined = DateTime.now().difference(createdAt).inDays;
-
     if (daysJoined >= 365) return "Trusted User";
     if (daysJoined >= 14) return "Active User";
     return "New Users";
   }
 
-  // --- POPUP LOGIC FOR ACTIVITY LEVELS ---
   void _showStatusInfoPopup(String status) {
-    String description = "";
-
-    if (status == "Trusted User") {
-      description = "This account is trusted.";
-    } else if (status == "Active User") {
-      description = "Active users are those who have used the system for 14 days or longer.";
-    } else {
-      description = "New users are limited to comment a maximum of 3 reviews per day.";
-    }
+    String description = (status == "Trusted User")
+        ? "This account is trusted."
+        : (status == "Active User")
+        ? "Active users are those who have used the system for 14 days or longer."
+        : "New users are limited to comment a maximum of 3 reviews per day.";
 
     showDialog(
       context: context,
@@ -69,11 +61,13 @@ class UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
+  // --- UPDATED REFRESH LOGIC ---
   Future<void> refreshPosts() async {
     try {
       final supabase = Supabase.instance.client;
       final profileId = widget.userData['id'];
 
+      // MATCHED WITH DISCOVER: Include comments count and user_liked sub-query
       final postsData = await supabase
           .from('posts')
           .select('''
@@ -83,13 +77,15 @@ class UserProfilePageState extends State<UserProfilePage> {
             user_liked:likes(profile_id)
           ''')
           .eq('profile_id', profileId)
+      // Filter sub-query join to check ONLY for the current user
+          .eq('user_liked.profile_id', profileId)
           .order('created_at', ascending: false);
 
       int likesSum = 0;
-      if (postsData != null && postsData.isNotEmpty) {
+      if (postsData != null) {
         for (var post in postsData) {
-          final likesList = post['likes'];
-          if (likesList != null && likesList is List && likesList.isNotEmpty) {
+          final likesList = post['likes'] as List?;
+          if (likesList != null && likesList.isNotEmpty) {
             likesSum += (likesList.first['count'] as int? ?? 0);
           }
         }
@@ -112,18 +108,10 @@ class UserProfilePageState extends State<UserProfilePage> {
     try {
       await Supabase.instance.client.auth.signOut();
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const LoginPage()),
-              (route) => false,
-        );
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginPage()), (route) => false);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Logout failed: ${e.toString()}"), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Logout failed: ${e.toString()}"), backgroundColor: Colors.red));
     }
   }
 
@@ -155,8 +143,7 @@ class UserProfilePageState extends State<UserProfilePage> {
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
+                    begin: Alignment.centerLeft, end: Alignment.centerRight,
                     colors: [Colors.blue.shade100, Colors.purple.shade50],
                   ),
                 ),
@@ -200,31 +187,43 @@ class UserProfilePageState extends State<UserProfilePage> {
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.all(12),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.68,
+        crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.68,
       ),
       itemCount: _userPosts.length,
       itemBuilder: (context, index) {
         final post = _userPosts[index];
-        final dynamic rawMedia = post['media_urls'];
-        final List<dynamic> media = (rawMedia != null && rawMedia is List) ? rawMedia : [];
+        final List<dynamic> media = post['media_urls'] ?? [];
         final String profileUrl = widget.userData['profile_url'] ?? "";
 
-        final likesData = post['likes'];
-        final int postLikeCount = (likesData != null && likesData is List && likesData.isNotEmpty) ? likesData.first['count'] ?? 0 : 0;
-        final commentsData = post['comments'];
-        final int postCommentCount = (commentsData != null && commentsData is List && commentsData.isNotEmpty) ? commentsData.first['count'] ?? 0 : 0;
-        final userLikedData = post['user_liked'];
-        final bool isLikedByMe = (userLikedData != null && userLikedData is List && userLikedData.isNotEmpty);
+        // Total Counts
+        final likesData = post['likes'] as List?;
+        final int postLikeCount = (likesData != null && likesData.isNotEmpty) ? likesData.first['count'] ?? 0 : 0;
+        final commentsData = post['comments'] as List?;
+        final int postCommentCount = (commentsData != null && commentsData.isNotEmpty) ? commentsData.first['count'] ?? 0 : 0;
+
+        // --- LOGIC: IS LIKED BY ME ---
+        // user_liked will not be empty if the current user has a record in the likes table
+        final userLikedData = post['user_liked'] as List?;
+        final bool isLikedByMe = (userLikedData != null && userLikedData.isNotEmpty);
 
         return GestureDetector(
           onTap: () async {
             final Map<String, dynamic> postWithProfile = Map.from(post);
             postWithProfile['profiles'] = {'profile_url': profileUrl, 'username': username};
-            final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => PostDetailPage(post: postWithProfile, userName: username, viewerProfileId: widget.userData['id'])));
-            if (result == true) refreshPosts();
+
+            // --- IMMEDIATE REFRESH PATTERN ---
+            // await the return and trigger refresh immediately to update counts
+            await Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => PostDetailPage(
+                        post: postWithProfile,
+                        userName: username,
+                        viewerProfileId: widget.userData['id']
+                    )
+                )
+            );
+            refreshPosts(); // Updates likes/comments instantly upon return
           },
           child: Container(
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))]),
@@ -251,6 +250,8 @@ class UserProfilePageState extends State<UserProfilePage> {
                           CircleAvatar(radius: 10, backgroundImage: profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null, child: profileUrl.isEmpty ? const Icon(Icons.person, size: 10) : null),
                           const SizedBox(width: 6),
                           Expanded(child: Text(username, style: const TextStyle(fontSize: 11, color: Colors.black54), overflow: TextOverflow.ellipsis)),
+
+                          // --- MATCHED UI ROW ---
                           const Icon(Icons.mode_comment_outlined, size: 12, color: Colors.grey),
                           const SizedBox(width: 2),
                           Text("$postCommentCount", style: const TextStyle(fontSize: 10)),
@@ -283,12 +284,12 @@ class UserProfilePageState extends State<UserProfilePage> {
             if (newInterests != null) setState(() { widget.userData['interests'] = newInterests; });
             break;
           case 'reports':
-          Navigator.push(context, MaterialPageRoute(builder: (context) => MyReportListPage(userData: widget.userData)));
+            Navigator.push(context, MaterialPageRoute(builder: (context) => MyReportListPage(userData: widget.userData)));
             break;
         }
       },
       itemBuilder: (context) => [
-        const PopupMenuItem(value: 'personalized', child: Row(children: [Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 20), SizedBox(width: 10), Text("AI Personalized")])),
+        const PopupMenuItem(value: 'personalized', child: Row(children: [Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 20), SizedBox(width: 10), Text("Personalized")])),
         const PopupMenuItem(value: 'reports', child: Row(children: [Icon(Icons.description_outlined, color: Colors.black87, size: 20), SizedBox(width: 10), Text("My Reports")])),
         const PopupMenuItem(value: 'help', child: Row(children: [Icon(Icons.help_outline, color: Colors.black87, size: 20), SizedBox(width: 10), Text("Help Center")])),
         const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, color: Colors.redAccent, size: 20), SizedBox(width: 10), Text("Logout", style: TextStyle(color: Colors.redAccent))])),
@@ -297,8 +298,7 @@ class UserProfilePageState extends State<UserProfilePage> {
   }
 
   Widget _buildProfileHeader(String username, String id) {
-    IconData genderIcon = Icons.help_outline;
-    Color genderColor = Colors.grey;
+    IconData genderIcon = Icons.help_outline; Color genderColor = Colors.grey;
     final String gender = (widget.userData['gender'] ?? "").toString().toLowerCase();
     final String? profileUrl = widget.userData['profile_url'];
     if (gender == "female") { genderIcon = Icons.female; genderColor = Colors.pinkAccent; }
@@ -309,8 +309,7 @@ class UserProfilePageState extends State<UserProfilePage> {
       child: Row(
         children: [
           CircleAvatar(
-            radius: 45,
-            backgroundColor: Colors.white,
+            radius: 45, backgroundColor: Colors.white,
             backgroundImage: profileUrl != null && profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null,
             child: profileUrl == null || profileUrl.isEmpty ? const Icon(Icons.face, size: 70, color: Colors.brown) : null,
           ),
@@ -331,16 +330,11 @@ class UserProfilePageState extends State<UserProfilePage> {
 
   Widget _buildUserStatusBadge() {
     final String statusTitle = _calculateStatus();
-
     return GestureDetector(
       onTap: () => _showStatusInfoPopup(statusTitle),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
-        ),
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(5), border: Border.all(color: Colors.blueAccent.withOpacity(0.3))),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -359,33 +353,13 @@ class UserProfilePageState extends State<UserProfilePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              _StatItem(label: "Posts", count: _userPosts.length.toString()),
-              const SizedBox(width: 30),
-              _StatItem(label: "Likes", count: _totalLikes.toString()),
-            ],
-          ),
+          Row(children: [_StatItem(label: "Posts", count: _userPosts.length.toString()), const SizedBox(width: 30), _StatItem(label: "Likes", count: _totalLikes.toString())]),
           ElevatedButton(
             onPressed: () async {
-              final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => EditProfilePage(userData: widget.userData))
-              );
-              if (result != null && result is Map<String, dynamic>) {
-                setState(() { widget.userData.addAll(result); });
-              }
+              final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfilePage(userData: widget.userData)));
+              if (result != null && result is Map<String, dynamic>) setState(() { widget.userData.addAll(result); });
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white.withOpacity(0.9),
-              foregroundColor: Colors.black87,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(color: Colors.grey.shade300)
-              ),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.9), foregroundColor: Colors.black87, elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade300))),
             child: const Text("Edit Profile", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -395,18 +369,10 @@ class UserProfilePageState extends State<UserProfilePage> {
 }
 
 class _StatItem extends StatelessWidget {
-  final String label;
-  final String count;
+  final String label; final String count;
   const _StatItem({required this.label, required this.count});
-
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(count, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))
-      ],
-    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(count, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))]);
   }
 }

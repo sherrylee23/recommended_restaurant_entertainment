@@ -79,23 +79,30 @@ class _EditPostPageState extends State<EditPostPage> {
         finalUrls.add(supabase.storage.from('post_media').getPublicUrl(path));
       }
 
+      // --- MODIFIED: Ensure profile_id is kept in the map ---
       final updatedPost = {
+        'id': widget.post['id'],
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'location_name': _selectedLocationName,
         'rating': _rating,
         'category_names': _selectedCategories,
         'media_urls': finalUrls,
+        'profile_id': widget.post['profile_id'], // CRITICAL: Keep owner ID
       };
 
       await supabase.from('posts').update(updatedPost).eq('id', widget.post['id']);
 
       if (mounted) {
         _showSnackBar("Post updated successfully!", Colors.green);
-        Navigator.pop(context, {'id': widget.post['id'], ...updatedPost});
+        // Pass back the full object including profile_id
+        Navigator.pop(context, updatedPost);
       }
-    } catch (e) { _showSnackBar("Update failed: $e", Colors.red); }
-    finally { if (mounted) setState(() => _isSaving = false); }
+    } catch (e) {
+      _showSnackBar("Update failed: $e", Colors.red);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   void _showSnackBar(String m, Color c) {
@@ -118,7 +125,6 @@ class _EditPostPageState extends State<EditPostPage> {
 
           return GestureDetector(
             onTap: () {
-              // Open full-screen swiper
               Navigator.push(
                 context,
                 MaterialPageRoute(

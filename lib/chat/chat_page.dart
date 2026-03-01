@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'chat_detail.dart';
-import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart'; // Ensure this is created
 import 'package:intl/intl.dart';
+import 'chat_detail.dart';
+import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart';
+import 'view_business_profile.dart';
+import 'user_booking_history.dart';
 
 class UserInboxPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -34,12 +36,26 @@ class _UserInboxPageState extends State<UserInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text("Messages", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.blue.shade100,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.event_note, color: Colors.blueAccent),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => UserBookingHistoryPage(userData: widget.userData),
+                ),
+              );
+            },
+            tooltip: "My Bookings",
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -48,71 +64,100 @@ class _UserInboxPageState extends State<UserInboxPage> {
             colors: [Colors.blue.shade100, Colors.purple.shade50],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                child: TextField(
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: InputDecoration(
-                    hintText: "Search businesses...",
-                    prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.9),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: BorderSide(color: Colors.blue.shade100),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                      borderSide: const BorderSide(color: Colors.blueAccent),
-                    ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: TextField(
+                onChanged: (value) => setState(() => _searchQuery = value),
+                decoration: InputDecoration(
+                  hintText: "Search businesses...",
+                  prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.9),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide(color: Colors.blue.shade100),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: const BorderSide(color: Colors.blueAccent),
                   ),
                 ),
               ),
-              Expanded(
-                child: _searchQuery.isEmpty
-                    ? Column(
-                  children: [
-                    // --- SYSTEM NOTIFICATIONS TILE ---
-                    _buildSystemNotificationTile(),
-                    const Divider(indent: 70, endIndent: 20, height: 1),
-                    Expanded(child: _buildChatHistory()),
-                  ],
-                )
-                    : _buildSearchResults(),
-              ),
-            ],
-          ),
+            ),
+            Expanded(
+              child: _searchQuery.isEmpty
+                  ? Column(
+                children: [
+                  _buildSystemNotificationTile(),
+                  const Divider(indent: 70, endIndent: 20, height: 1),
+                  Expanded(child: _buildChatHistory()),
+                ],
+              )
+                  : _buildSearchResults(),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  // --- FIXED: SYSTEM NOTIFICATION TILE ---
   Widget _buildSystemNotificationTile() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Colors.redAccent,
-          child: Icon(Icons.notifications_active, color: Colors.white, size: 20),
-        ),
-        title: const Text("System Notifications",
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-        subtitle: const Text("View updates on your reports and complaints",
-            style: TextStyle(fontSize: 12)),
-        trailing: const Icon(LucideIcons.chevronRight, size: 16),
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(
-              builder: (context) => SystemMessagePage(userData: widget.userData)
-          ));
-        },
-      ),
+    final userId = widget.userData['id'];
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      // FIX: Apply the 'user_id' filter inside the stream method itself.
+      // Filter for 'is_read' manually inside the builder to ensure compatibility.
+      stream: _supabase
+          .from('system_messages')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', userId), // Standard stream filtering
+      builder: (context, snapshot) {
+        // Manually check if any message in the stream is unread
+        final bool hasUnread = snapshot.hasData &&
+            snapshot.data!.any((msg) => msg['is_read'] == false);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: ListTile(
+            leading: Stack(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Colors.redAccent,
+                  child: Icon(Icons.notifications_active, color: Colors.white, size: 20),
+                ),
+                if (hasUnread)
+                  Positioned(
+                    right: 0, top: 0,
+                    child: Container(
+                        width: 12, height: 12,
+                        decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2)
+                        )
+                    ),
+                  ),
+              ],
+            ),
+            title: const Text("System Notifications",
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+            subtitle: const Text("View updates on your reports and complaints",
+                style: TextStyle(fontSize: 12)),
+            trailing: const Icon(LucideIcons.chevronRight, size: 16),
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(
+                  builder: (context) => SystemMessagePage(userData: widget.userData)
+              ));
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -131,7 +176,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
             .toSet().where((id) => id != userId).toList();
 
         return ListView.builder(
-          shrinkWrap: true, // Required inside a Column/Expanded
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: businessIds.length,
           itemBuilder: (context, index) => _buildBusinessTile(businessIds[index], allMessages),
@@ -166,18 +210,34 @@ class _UserInboxPageState extends State<UserInboxPage> {
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: Stack(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.blue.shade50,
-                  child: const Icon(LucideIcons.store, color: Colors.blueAccent),
-                ),
-                if (hasUnread)
-                  Positioned(
-                    right: 0, top: 0,
-                    child: Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2))),
+            leading: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => UserViewBusinessPage(
+                      businessData: business,
+                      userData: widget.userData,
+                    ),
                   ),
-              ],
+                );
+              },
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.blue.shade50,
+                    child: const Icon(LucideIcons.store, color: Colors.blueAccent),
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      right: 0, top: 0,
+                      child: Container(
+                          width: 12, height: 12,
+                          decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2))
+                      ),
+                    ),
+                ],
+              ),
             ),
             title: Text(business['business_name'] ?? "Business",
                 style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
@@ -220,14 +280,14 @@ class _UserInboxPageState extends State<UserInboxPage> {
           itemCount: results.length,
           itemBuilder: (context, index) {
             final business = results[index];
-            return _buildBusinessTileFromData(business);
+            return _buildBusinessTileFromSearch(business);
           },
         );
       },
     );
   }
 
-  Widget _buildBusinessTileFromData(Map<String, dynamic> business) {
+  Widget _buildBusinessTileFromSearch(Map<String, dynamic> business) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -237,12 +297,25 @@ class _UserInboxPageState extends State<UserInboxPage> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: CircleAvatar(
-          backgroundColor: Colors.white,
-          child: const Icon(LucideIcons.plus, color: Colors.blueAccent, size: 20),
+        leading: GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => UserViewBusinessPage(
+                  businessData: business,
+                  userData: widget.userData,
+                ),
+              ),
+            );
+          },
+          child: CircleAvatar(
+            backgroundColor: Colors.white,
+            child: const Icon(LucideIcons.store, color: Colors.blueAccent, size: 20),
+          ),
         ),
         title: Text(business['business_name'] ?? "Business", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: const Text("Start a new conversation", style: TextStyle(fontSize: 12)),
+        subtitle: const Text("View profile or message", style: TextStyle(fontSize: 12)),
         trailing: const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
         onTap: () {
           Navigator.push(context, MaterialPageRoute(

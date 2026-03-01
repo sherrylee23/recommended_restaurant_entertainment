@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'chat_detail.dart';
 import 'package:intl/intl.dart';
+import 'chat_detail.dart';
+import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart';
 import 'view_business_profile.dart';
 import 'user_booking_history.dart';
 
@@ -35,15 +36,12 @@ class _UserInboxPageState extends State<UserInboxPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // extendBodyBehindAppBar: true, // Removed to prevent overlap with title
-      // Update your UserInboxPage AppBar code:
       appBar: AppBar(
         title: const Text("Messages", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.blue.shade100,
         elevation: 0,
         centerTitle: true,
         actions: [
-          // --- ADD THIS ACTION ---
           IconButton(
             icon: const Icon(Icons.event_note, color: Colors.blueAccent),
             onPressed: () {
@@ -89,11 +87,77 @@ class _UserInboxPageState extends State<UserInboxPage> {
               ),
             ),
             Expanded(
-              child: _searchQuery.isEmpty ? _buildChatHistory() : _buildSearchResults(),
+              child: _searchQuery.isEmpty
+                  ? Column(
+                children: [
+                  _buildSystemNotificationTile(),
+                  const Divider(indent: 70, endIndent: 20, height: 1),
+                  Expanded(child: _buildChatHistory()),
+                ],
+              )
+                  : _buildSearchResults(),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  // --- FIXED: SYSTEM NOTIFICATION TILE ---
+  Widget _buildSystemNotificationTile() {
+    final userId = widget.userData['id'];
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      // FIX: Apply the 'user_id' filter inside the stream method itself.
+      // Filter for 'is_read' manually inside the builder to ensure compatibility.
+      stream: _supabase
+          .from('system_messages')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', userId), // Standard stream filtering
+      builder: (context, snapshot) {
+        // Manually check if any message in the stream is unread
+        final bool hasUnread = snapshot.hasData &&
+            snapshot.data!.any((msg) => msg['is_read'] == false);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: ListTile(
+            leading: Stack(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Colors.redAccent,
+                  child: Icon(Icons.notifications_active, color: Colors.white, size: 20),
+                ),
+                if (hasUnread)
+                  Positioned(
+                    right: 0, top: 0,
+                    child: Container(
+                        width: 12, height: 12,
+                        decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2)
+                        )
+                    ),
+                  ),
+              ],
+            ),
+            title: const Text("System Notifications",
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+            subtitle: const Text("View updates on your reports and complaints",
+                style: TextStyle(fontSize: 12)),
+            trailing: const Icon(LucideIcons.chevronRight, size: 16),
+            onTap: () {
+              Navigator.push(context, MaterialPageRoute(
+                  builder: (context) => SystemMessagePage(userData: widget.userData)
+              ));
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -107,7 +171,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
         }
 
         final allMessages = snapshot.data!;
-        // Get unique business IDs from the message history
         final businessIds = allMessages
             .map((m) => m['is_from_business'] ? m['sender_id'] : m['receiver_id'])
             .toSet().where((id) => id != userId).toList();
@@ -147,7 +210,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            // --- UPDATE: Profile Image is now clickable ---
             leading: GestureDetector(
               onTap: () {
                 Navigator.push(
@@ -191,7 +253,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
               ],
             ),
             onTap: () async {
-              // Mark as read when entering chat
               await _supabase.from('messages').update({'is_read': true}).eq('receiver_id', userId).eq('sender_id', bId);
               if (mounted) {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)));
@@ -213,22 +274,20 @@ class _UserInboxPageState extends State<UserInboxPage> {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(child: Text("No businesses found", style: TextStyle(color: Colors.blue.shade900)));
         }
-
         final results = snapshot.data!;
-
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: results.length,
           itemBuilder: (context, index) {
             final business = results[index];
-            return _buildBusinessTileFromData(business);
+            return _buildBusinessTileFromSearch(business);
           },
         );
       },
     );
   }
 
-  Widget _buildBusinessTileFromData(Map<String, dynamic> business) {
+  Widget _buildBusinessTileFromSearch(Map<String, dynamic> business) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -238,7 +297,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        // --- UPDATE: Search icon also leads to profile ---
         leading: GestureDetector(
           onTap: () {
             Navigator.push(
@@ -260,15 +318,9 @@ class _UserInboxPageState extends State<UserInboxPage> {
         subtitle: const Text("View profile or message", style: TextStyle(fontSize: 12)),
         trailing: const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UserChatDetailPage(
-                userData: widget.userData,
-                businessData: business,
-              ),
-            ),
-          );
+          Navigator.push(context, MaterialPageRoute(
+            builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business),
+          ));
         },
       ),
     );

@@ -29,24 +29,41 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     _performSearch();
   }
 
+  // --- MODIFIED SEARCH LOGIC: Enhanced Category Array Overlap ---
   Future<void> _performSearch() async {
     try {
       final supabase = Supabase.instance.client;
-      final q = widget.query.trim();
+      final String q = widget.query.trim();
       final profileId = widget.currentUserData['id'];
-      final formattedQ = q.isNotEmpty ? q[0].toUpperCase() + q.substring(1).toLowerCase() : q;
 
+      // 1. FORMATTING LOGIC: Prepare variants for the category array
+      // Postgres array search is case-sensitive. We generate variants to ensure
+      // multi-word categories like "Theme Park" or "Street Food" are caught.
+      final String lowerQ = q.toLowerCase();
+
+      // Title Case every word: "theme park" -> "Theme Park"
+      final String titleCaseQ = q.isNotEmpty
+          ? q.split(' ').map((word) => word.isNotEmpty
+          ? word[0].toUpperCase() + word.substring(1).toLowerCase()
+          : '').join(' ')
+          : q;
+
+      // 2. OMNI-SEARCH QUERY
+      // We use .ov (overlap) instead of .cs (contains) to check against multiple variants.
       dynamic queryBuilder = supabase
           .from('posts')
           .select('''
             *, 
             profiles(username, profile_url),
             likes(count),
+            comments(count),
             user_liked:likes(profile_id)
           ''')
           .eq('user_liked.profile_id', profileId)
-          .or('title.ilike.%$q%,location_name.ilike.%$q%,category_names.cs.{"$formattedQ"}');
+      // SEARCH LOGIC: Title OR Location OR Category Overlap (ov)
+          .or('title.ilike.%$q%,location_name.ilike.%$q%,category_names.ov.{"$titleCaseQ","$q","$lowerQ"}');
 
+      // Handle Sorting Logic
       if (_selectedSort == 'Top Rated') {
         queryBuilder = queryBuilder.order('rating', ascending: false);
       } else {
@@ -56,6 +73,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       final data = await queryBuilder;
       List<Map<String, dynamic>> fetchedResults = List<Map<String, dynamic>>.from(data);
 
+      // Client-side sort for 'Most Liked' as complex joins can be slow to sort on DB
       if (_selectedSort == 'Most Liked') {
         fetchedResults.sort((a, b) {
           final int countA = (a['likes'] as List).isNotEmpty ? a['likes'][0]['count'] ?? 0 : 0;
@@ -109,7 +127,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 0.68, // MATCHED
+                childAspectRatio: 0.68,
               ),
               itemCount: _results.length,
               itemBuilder: (context, index) => _buildResultCard(_results[index]),
@@ -186,8 +204,11 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     final String? profileUrl = profile['profile_url']?.toString();
 
     final int postLikeCount = (post['likes'] as List).isNotEmpty
-        ? (post['likes'] as List).first['count'] ?? 0
-        : 0;
+        ? (post['likes'] as List).first['count'] ?? 0 : 0;
+
+    final int postCommentCount = (post['comments'] as List).isNotEmpty
+        ? (post['comments'] as List).first['count'] ?? 0 : 0;
+
     final bool isLikedByMe = (post['user_liked'] as List).isNotEmpty;
 
     return GestureDetector(
@@ -207,10 +228,10 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(15), // MATCHED
+          borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05), // MATCHED
+              color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
               offset: const Offset(0, 4),
             )
@@ -219,22 +240,15 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // MATCHED: Image Section using Expanded to mirror Discover/Profile
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                child: Image.network(
-                  media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey.shade100,
-                    child: const Icon(LucideIcons.image, color: Colors.grey),
-                  ),
-                ),
+                child: media.isNotEmpty
+                    ? Image.network(media[0], width: double.infinity, fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade100, child: const Icon(LucideIcons.image, color: Colors.grey)))
+                    : Container(color: Colors.grey.shade100, child: const Icon(LucideIcons.image, color: Colors.grey)),
               ),
             ),
-            // MATCHED: Text and Metadata Section
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
@@ -252,11 +266,9 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                       CircleAvatar(
                         radius: 10,
                         backgroundImage: profileUrl != null && profileUrl.isNotEmpty
-                            ? NetworkImage(profileUrl)
-                            : null,
+                            ? NetworkImage(profileUrl) : null,
                         child: (profileUrl == null || profileUrl.isEmpty)
-                            ? const Icon(Icons.person, size: 10)
-                            : null,
+                            ? const Icon(Icons.person, size: 10) : null,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -266,6 +278,10 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const Icon(Icons.mode_comment_outlined, size: 12, color: Colors.grey),
+                      const SizedBox(width: 2),
+                      Text("$postCommentCount", style: const TextStyle(fontSize: 10)),
+                      const SizedBox(width: 5),
                       Icon(
                         isLikedByMe ? Icons.favorite : Icons.favorite_border,
                         size: 14,

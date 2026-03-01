@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'chat_detail.dart';
+import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart'; // Ensure this is created
 import 'package:intl/intl.dart';
 
 class UserInboxPage extends StatefulWidget {
@@ -71,11 +72,46 @@ class _UserInboxPageState extends State<UserInboxPage> {
                 ),
               ),
               Expanded(
-                child: _searchQuery.isEmpty ? _buildChatHistory() : _buildSearchResults(),
+                child: _searchQuery.isEmpty
+                    ? Column(
+                  children: [
+                    // --- SYSTEM NOTIFICATIONS TILE ---
+                    _buildSystemNotificationTile(),
+                    const Divider(indent: 70, endIndent: 20, height: 1),
+                    Expanded(child: _buildChatHistory()),
+                  ],
+                )
+                    : _buildSearchResults(),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSystemNotificationTile() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: Colors.redAccent,
+          child: Icon(Icons.notifications_active, color: Colors.white, size: 20),
+        ),
+        title: const Text("System Notifications",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+        subtitle: const Text("View updates on your reports and complaints",
+            style: TextStyle(fontSize: 12)),
+        trailing: const Icon(LucideIcons.chevronRight, size: 16),
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(
+              builder: (context) => SystemMessagePage(userData: widget.userData)
+          ));
+        },
       ),
     );
   }
@@ -95,6 +131,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
             .toSet().where((id) => id != userId).toList();
 
         return ListView.builder(
+          shrinkWrap: true, // Required inside a Column/Expanded
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: businessIds.length,
           itemBuilder: (context, index) => _buildBusinessTile(businessIds[index], allMessages),
@@ -167,7 +204,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  // Missing _buildSearchResults Logic
   Widget _buildSearchResults() {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _supabase.from('business_profiles').select().ilike('business_name', '%$_searchQuery%'),
@@ -178,9 +214,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(child: Text("No businesses found", style: TextStyle(color: Colors.blue.shade900)));
         }
-
         final results = snapshot.data!;
-
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: results.length,
@@ -193,7 +227,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  // Missing Helper to build a tile from search data
   Widget _buildBusinessTileFromData(Map<String, dynamic> business) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -212,15 +245,9 @@ class _UserInboxPageState extends State<UserInboxPage> {
         subtitle: const Text("Start a new conversation", style: TextStyle(fontSize: 12)),
         trailing: const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UserChatDetailPage(
-                userData: widget.userData,
-                businessData: business,
-              ),
-            ),
-          );
+          Navigator.push(context, MaterialPageRoute(
+            builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business),
+          ));
         },
       ),
     );

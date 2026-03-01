@@ -44,12 +44,20 @@ class _PostDetailPageState extends State<PostDetailPage> {
   // --- AI ANALYSIS LOGIC ---
   Future<void> _recordViewForAI() async {
     if (widget.viewerProfileId == null) return;
+
     final List<dynamic> categories = _currentPost['category_names'] ?? [];
+
+    // Normalize strings before sending to RPC
+    final normalizedCategories = categories.map((c) {
+      String s = c.toString();
+      return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
+    }).toList();
+
     try {
       final supabase = Supabase.instance.client;
       await supabase.rpc('increment_interest_counts', params: {
         'p_user_id': widget.viewerProfileId,
-        'categories': categories,
+        'categories': normalizedCategories,
       });
     } catch (e) {
       debugPrint("AI Record Error: $e");

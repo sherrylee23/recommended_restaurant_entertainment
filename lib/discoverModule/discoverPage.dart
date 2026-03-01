@@ -154,7 +154,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
   Widget _discoverCard(Map<String, dynamic> post) {
     final profile = post['profiles'] ?? {};
     final media = post['media_urls'] as List? ?? [];
-    final List<dynamic> categories = post['category_names'] ?? [];
 
     final int likeCount = (post['likes'] as List?)?.isNotEmpty == true
         ? post['likes'][0]['count'] ?? 0
@@ -162,8 +161,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
     final bool isLikedByMe = (post['user_liked'] as List?)?.isNotEmpty ?? false;
 
-    final int postIndex = _posts.indexOf(post);
-    final bool isAiTopPick = postIndex < 4 && postIndex != -1;
+    // REMOVED: isAiTopPick logic here
 
     return GestureDetector(
       onTap: () async {
@@ -193,95 +191,65 @@ class _DiscoverPageState extends State<DiscoverPage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(20),
-          child: Stack(
+          child: Column( // REMOVED: Stack is no longer needed without the badge
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: Image.network(
-                      media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey.shade100,
-                        child: const Icon(LucideIcons.image, color: Colors.grey),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            post['title'] ?? "Untitled",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                          ),
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 9,
-                                backgroundImage: profile['profile_url'] != null
-                                    ? NetworkImage(profile['profile_url']) : null,
-                                child: profile['profile_url'] == null
-                                    ? const Icon(Icons.person, size: 10) : null,
-                              ),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: Text(
-                                  profile['username'] ?? "User",
-                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              Icon(
-                                isLikedByMe ? Icons.favorite : Icons.favorite_border,
-                                size: 12,
-                                color: isLikedByMe ? Colors.redAccent : Colors.grey,
-                              ),
-                              const SizedBox(width: 2),
-                              Text("$likeCount", style: const TextStyle(fontSize: 10)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (isAiTopPick)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.blueAccent, Colors.purpleAccent.shade100],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.auto_awesome, color: Colors.white, size: 10),
-                        SizedBox(width: 4),
-                        Text(
-                          "FOR YOU",
-                          style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
+              Expanded(
+                flex: 3,
+                child: Image.network(
+                  media.isNotEmpty ? media[0] : "https://picsum.photos/400/500",
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    color: Colors.grey.shade100,
+                    child: const Icon(LucideIcons.image, color: Colors.grey),
                   ),
                 ),
+              ),
+              Expanded(
+                flex: 1,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        post['title'] ?? "Untitled",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 9,
+                            backgroundImage: profile['profile_url'] != null
+                                ? NetworkImage(profile['profile_url']) : null,
+                            child: profile['profile_url'] == null
+                                ? const Icon(Icons.person, size: 10) : null,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              profile['username'] ?? "User",
+                              style: const TextStyle(fontSize: 10, color: Colors.black54),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Icon(
+                            isLikedByMe ? Icons.favorite : Icons.favorite_border,
+                            size: 12,
+                            color: isLikedByMe ? Colors.redAccent : Colors.grey,
+                          ),
+                          const SizedBox(width: 2),
+                          Text("$likeCount", style: const TextStyle(fontSize: 10)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),

@@ -38,12 +38,18 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
       final supabase = Supabase.instance.client;
       final data = await supabase.from('posts').select('category_names');
 
+      // Helper inside the method to match your search logic
+      String toTitleCase(String text) => text.isEmpty
+          ? text
+          : text[0].toUpperCase() + text.substring(1).toLowerCase();
+
       final Set<String> uniqueCategories = {};
       for (var row in data) {
         final List? categories = row['category_names'] as List?;
         if (categories != null) {
           for (var cat in categories) {
-            uniqueCategories.add(cat.toString());
+            // Normalize here to prevent "Theme Park" vs "Theme park"
+            uniqueCategories.add(toTitleCase(cat.toString().trim()));
           }
         }
       }
@@ -110,40 +116,41 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     final String trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) return;
 
+    // Helper to force Title Case (e.g., "cafe" -> "Cafe")
+    String toTitleCase(String text) => text.isEmpty
+        ? text
+        : text[0].toUpperCase() + text.substring(1).toLowerCase();
+
     final supabase = Supabase.instance.client;
 
     try {
-      // 1. "Look ahead" to see what categories this search term (location or title) relates to
       final postData = await supabase
           .from('posts')
           .select('category_names')
           .or('location_name.ilike.%$trimmedQuery%,title.ilike.%$trimmedQuery%')
-          .limit(10); // Check the top 10 matching posts
+          .limit(10);
 
-      // 2. Extract the actual categories from those posts
       Set<String> categoriesToRecord = {};
       for (var row in postData) {
         final List? cats = row['category_names'] as List?;
         if (cats != null) {
           for (var c in cats) {
-            categoriesToRecord.add(c.toString());
+            // Normalize here before adding to the Set
+            categoriesToRecord.add(toTitleCase(c.toString()));
           }
         }
       }
 
-      // 3. Logic: If we found categories linked to this location/query, record THEM
       if (categoriesToRecord.isNotEmpty) {
         await supabase.rpc('increment_interest_counts', params: {
           'p_user_id': widget.currentUserData['id'],
           'categories': categoriesToRecord.toList(),
         });
-        debugPrint("AI learned categories from $trimmedQuery: $categoriesToRecord");
-      }
-      // 4. Fallback: If it's a direct category search (no posts found yet), record the query itself
-      else {
+      } else {
+        // Fallback: Normalize the direct search query as well
         await supabase.rpc('increment_interest_counts', params: {
           'p_user_id': widget.currentUserData['id'],
-          'categories': [trimmedQuery],
+          'categories': [toTitleCase(trimmedQuery)],
         });
       }
     } catch (e) {
@@ -180,13 +187,19 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
         title: TextField(
           controller: _controller,
           autofocus: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: "Search location, title, or category...",
             border: InputBorder.none,
+            // ADDED: Search icon at the end of the text field
+            suffixIcon: IconButton(
+              icon: const Icon(LucideIcons.search, color: Colors.black, size: 25),
+              onPressed: () => _submitSearch(_controller.text),
+            ),
           ),
           onSubmitted: _submitSearch,
         ),
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(

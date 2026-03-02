@@ -6,6 +6,8 @@ import 'chat_detail.dart';
 import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart';
 import 'view_business_profile.dart';
 import 'user_booking_history.dart';
+// Ensure this import path matches your project structure
+import 'comment_notification.dart';
 
 class UserInboxPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -19,11 +21,19 @@ class _UserInboxPageState extends State<UserInboxPage> {
   final _supabase = Supabase.instance.client;
   String _searchQuery = "";
 
+  Key _refreshKey = UniqueKey();
+
+  Future<void> _handleRefresh() async {
+    setState(() {
+      _refreshKey = UniqueKey();
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
+
   String _formatDateTime(String? dateStr) {
     if (dateStr == null) return "";
     final DateTime date = DateTime.parse(dateStr).toLocal();
     final now = DateTime.now();
-
     if (date.day == now.day && date.month == now.month && date.year == now.year) {
       return DateFormat.jm().format(date);
     } else if (now.difference(date).inDays < 7) {
@@ -42,118 +52,124 @@ class _UserInboxPageState extends State<UserInboxPage> {
         elevation: 0,
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.event_note, color: Colors.blueAccent),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => UserBookingHistoryPage(userData: widget.userData),
-                ),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            key: _refreshKey,
+            stream: _supabase
+                .from('bookings')
+                .stream(primaryKey: ['id'])
+                .eq('user_id', widget.userData['id'].toString()),
+            builder: (context, snapshot) {
+              bool hasUpcomingToday = false;
+              if (snapshot.hasData) {
+                final now = DateTime.now();
+                final String today = DateFormat('yyyy-MM-dd').format(now);
+                final String currentTime = DateFormat('HH:mm:ss').format(now);
+                hasUpcomingToday = snapshot.data!.any((b) {
+                  final isToday = b['booking_date'] == today;
+                  String bTime = b['booking_time'] ?? "00:00:00";
+                  if (bTime.length == 5) bTime += ":00";
+                  String status = (b['status'] ?? "").toLowerCase();
+                  bool isActive = status != "rejected" && status != "cancelled";
+                  return isToday && bTime.compareTo(currentTime) >= 0 && isActive;
+                });
+              }
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.event_note, color: Colors.blueAccent),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => UserBookingHistoryPage(userData: widget.userData)));
+                    },
+                    tooltip: "My Bookings",
+                  ),
+                  if (hasUpcomingToday)
+                    Positioned(
+                      right: 12, top: 12,
+                      child: Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5))),
+                    ),
+                ],
               );
             },
-            tooltip: "My Bookings",
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.centerLeft, end: Alignment.centerRight,
-            colors: [Colors.blue.shade100, Colors.purple.shade50],
-          ),
+          gradient: LinearGradient(begin: Alignment.centerLeft, end: Alignment.centerRight, colors: [Colors.blue.shade100, Colors.purple.shade50]),
         ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: TextField(
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: "Search businesses...",
-                  prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.9),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide(color: Colors.blue.shade100),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: const BorderSide(color: Colors.blueAccent),
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: TextField(
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                  decoration: InputDecoration(
+                    hintText: "Search businesses...",
+                    prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(0.9),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.blue.shade100)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: _searchQuery.isEmpty
-                  ? Column(
-                children: [
-                  _buildSystemNotificationTile(),
-                  const Divider(indent: 70, endIndent: 20, height: 1),
-                  Expanded(child: _buildChatHistory()),
-                ],
-              )
-                  : _buildSearchResults(),
-            ),
-          ],
+              Expanded(
+                child: _searchQuery.isEmpty
+                    ? ListView(
+                  children: [
+                    _buildSystemNotificationTile(),
+                    const Divider(indent: 70, endIndent: 20, height: 1),
+                    _buildCommentNotificationTile(), // Updated Navigation Logic
+                    const Divider(indent: 70, endIndent: 20, height: 1),
+                    _buildChatHistoryStream(),
+                  ],
+                )
+                    : _buildSearchResults(),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- FIXED: SYSTEM NOTIFICATION TILE ---
-  Widget _buildSystemNotificationTile() {
+  Widget _buildCommentNotificationTile() {
     final userId = widget.userData['id'];
     return StreamBuilder<List<Map<String, dynamic>>>(
-      // FIX: Apply the 'user_id' filter inside the stream method itself.
-      // Filter for 'is_read' manually inside the builder to ensure compatibility.
+      key: _refreshKey,
       stream: _supabase
-          .from('system_messages')
+          .from('notifications')
           .stream(primaryKey: ['id'])
-          .eq('user_id', userId), // Standard stream filtering
+          .eq('user_id', userId)
+          .order('created_at', ascending: false),
       builder: (context, snapshot) {
-        // Manually check if any message in the stream is unread
-        final bool hasUnread = snapshot.hasData &&
-            snapshot.data!.any((msg) => msg['is_read'] == false);
+        final bool hasUnread = snapshot.hasData && snapshot.data!.any((msg) => msg['is_read'] == false);
 
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(15),
-          ),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(15)),
           child: ListTile(
             leading: Stack(
               children: [
-                const CircleAvatar(
-                  backgroundColor: Colors.redAccent,
-                  child: Icon(Icons.notifications_active, color: Colors.white, size: 20),
-                ),
-                if (hasUnread)
-                  Positioned(
-                    right: 0, top: 0,
-                    child: Container(
-                        width: 12, height: 12,
-                        decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2)
-                        )
-                    ),
-                  ),
+                const CircleAvatar(backgroundColor: Colors.orangeAccent, child: Icon(Icons.comment, color: Colors.white, size: 20)),
+                if (hasUnread) Positioned(right: 0, top: 0, child: Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)))),
               ],
             ),
-            title: const Text("System Notifications",
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-            subtitle: const Text("View updates on your reports and complaints",
-                style: TextStyle(fontSize: 12)),
+            title: const Text("Post Comments", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+            subtitle: const Text("See who commented on your posts", style: TextStyle(fontSize: 12)),
             trailing: const Icon(LucideIcons.chevronRight, size: 16),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(
-                  builder: (context) => SystemMessagePage(userData: widget.userData)
-              ));
+              // Navigates to the details page
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CommentNotificationPage(userData: widget.userData),
+                ),
+              );
             },
           ),
         );
@@ -161,21 +177,62 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  Widget _buildChatHistory() {
+  Widget _buildSystemNotificationTile() {
     final userId = widget.userData['id'];
     return StreamBuilder<List<Map<String, dynamic>>>(
+      key: _refreshKey,
+      stream: _supabase.from('system_messages').stream(primaryKey: ['id']).eq('user_id', userId),
+      builder: (context, snapshot) {
+        final bool hasUnread = snapshot.hasData && snapshot.data!.any((msg) => msg['is_read'] == false);
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(15)),
+          child: ListTile(
+            leading: Stack(
+              children: [
+                const CircleAvatar(backgroundColor: Colors.redAccent, child: Icon(Icons.notifications_active, color: Colors.white, size: 20)),
+                if (hasUnread) Positioned(right: 0, top: 0, child: Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)))),
+              ],
+            ),
+            title: const Text("System Notifications", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+            subtitle: const Text("View updates on your reports and complaints", style: TextStyle(fontSize: 12)),
+            trailing: const Icon(LucideIcons.chevronRight, size: 16),
+            onTap: () async {
+              await _supabase.from('system_messages').update({'is_read': true}).eq('user_id', userId).eq('is_read', false);
+              if (mounted) {
+                await Navigator.push(context, MaterialPageRoute(builder: (context) => SystemMessagePage(userData: widget.userData)));
+                _handleRefresh();
+              }
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildChatHistoryStream() {
+    final userId = widget.userData['id'];
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      key: _refreshKey,
       stream: _supabase.from('messages').stream(primaryKey: ['id']).order('created_at', ascending: false),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(child: Text("No conversations yet", style: TextStyle(color: Colors.blue.shade900)));
+          return const Padding(
+            padding: EdgeInsets.only(top: 50),
+            child: Center(child: Text("No conversations yet")),
+          );
         }
-
         final allMessages = snapshot.data!;
         final businessIds = allMessages
             .map((m) => m['is_from_business'] ? m['sender_id'] : m['receiver_id'])
-            .toSet().where((id) => id != userId).toList();
+            .toSet()
+            .where((id) => id != userId)
+            .toList();
 
         return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: businessIds.length,
           itemBuilder: (context, index) => _buildBusinessTile(businessIds[index], allMessages),
@@ -186,77 +243,32 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
   Widget _buildBusinessTile(dynamic bId, List<Map<String, dynamic>> allMessages) {
     final userId = widget.userData['id'];
-    final conversation = allMessages.where((m) =>
-    (m['sender_id'] == userId && m['receiver_id'] == bId) ||
-        (m['sender_id'] == bId && m['receiver_id'] == userId)
-    ).toList();
-
+    final conversation = allMessages.where((m) => (m['sender_id'] == userId && m['receiver_id'] == bId) || (m['sender_id'] == bId && m['receiver_id'] == userId)).toList();
     if (conversation.isEmpty) return const SizedBox.shrink();
     final lastMsg = conversation.first;
     final bool hasUnread = lastMsg['receiver_id'] == userId && lastMsg['is_read'] == false;
-
     return FutureBuilder<Map<String, dynamic>>(
       future: _supabase.from('business_profiles').select().eq('id', bId).single(),
       builder: (context, bSnapshot) {
         if (!bSnapshot.hasData) return const SizedBox.shrink();
         final business = bSnapshot.data!;
-
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.9), borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => UserViewBusinessPage(
-                      businessData: business,
-                      userData: widget.userData,
-                    ),
-                  ),
-                );
-              },
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.blue.shade50,
-                    child: const Icon(LucideIcons.store, color: Colors.blueAccent),
-                  ),
-                  if (hasUnread)
-                    Positioned(
-                      right: 0, top: 0,
-                      child: Container(
-                          width: 12, height: 12,
-                          decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2))
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            title: Text(business['business_name'] ?? "Business",
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
-            subtitle: Text(lastMsg['content'] ?? "", maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+            leading: Stack(
               children: [
-                Text(_formatDateTime(lastMsg['created_at']),
-                    style: TextStyle(fontSize: 11, color: hasUnread ? Colors.blueAccent : Colors.grey)),
-                const SizedBox(height: 4),
-                const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
+                CircleAvatar(backgroundColor: Colors.blue.shade50, child: const Icon(LucideIcons.store, color: Colors.blueAccent)),
+                if (hasUnread) Positioned(right: 0, top: 0, child: Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)))),
               ],
             ),
+            title: Text(business['business_name'] ?? "Business", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87)),
+            subtitle: Text(lastMsg['content'] ?? "", maxLines: 1, overflow: TextOverflow.ellipsis),
+            trailing: Text(_formatDateTime(lastMsg['created_at']), style: TextStyle(fontSize: 11, color: hasUnread ? Colors.blueAccent : Colors.grey)),
             onTap: () async {
               await _supabase.from('messages').update({'is_read': true}).eq('receiver_id', userId).eq('sender_id', bId);
-              if (mounted) {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)));
-              }
+              if (mounted) Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)));
+              _handleRefresh();
             },
           ),
         );
@@ -268,61 +280,13 @@ class _UserInboxPageState extends State<UserInboxPage> {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _supabase.from('business_profiles').select().ilike('business_name', '%$_searchQuery%'),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(child: Text("No businesses found", style: TextStyle(color: Colors.blue.shade900)));
-        }
-        final results = snapshot.data!;
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          itemCount: results.length,
-          itemBuilder: (context, index) {
-            final business = results[index];
-            return _buildBusinessTileFromSearch(business);
-          },
-        );
+        if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No businesses found"));
+        return ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: snapshot.data!.length, itemBuilder: (context, index) => _buildBusinessTileFromSearch(snapshot.data![index]));
       },
     );
   }
 
   Widget _buildBusinessTileFromSearch(Map<String, dynamic> business) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3))],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => UserViewBusinessPage(
-                  businessData: business,
-                  userData: widget.userData,
-                ),
-              ),
-            );
-          },
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
-            child: const Icon(LucideIcons.store, color: Colors.blueAccent, size: 20),
-          ),
-        ),
-        title: Text(business['business_name'] ?? "Business", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: const Text("View profile or message", style: TextStyle(fontSize: 12)),
-        trailing: const Icon(LucideIcons.chevronRight, size: 14, color: Colors.grey),
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business),
-          ));
-        },
-      ),
-    );
+    return ListTile(title: Text(business['business_name'] ?? ""), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business))));
   }
 }

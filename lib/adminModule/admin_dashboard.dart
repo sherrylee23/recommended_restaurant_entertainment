@@ -5,8 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:recommended_restaurant_entertainment/adminModule/admin_stats.dart';
 import 'admin_approval_list.dart';
 import 'admin_feedback_list.dart';
-import 'report_user_list.dart';
-import 'report_business_list.dart';
+import 'admin_report_list.dart';
 
 class AdminDashboard extends StatefulWidget {
   final Map<String, dynamic> adminData;
@@ -28,8 +27,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       AdminApprovalList(adminData: widget.adminData),
       const AdminStatsPage(),
       const AdminFeedbackListPage(),
-      const AdminReportUserListPage(),
-      const AdminReportBusinessListPage(), // 1. Added the Complaint Page to the index
+      const AdminReportListPage(), // The fourth page for Business Reports
     ];
   }
 
@@ -72,16 +70,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   selectedIcon: Icon(LucideIcons.messageSquare, color: Colors.blueAccent),
                   label: Text('Feedback'),
                 ),
+                // FIXED: Added the Reports destination for Desktop view
                 NavigationRailDestination(
                   icon: Icon(LucideIcons.alertTriangle),
                   selectedIcon: Icon(LucideIcons.alertTriangle, color: Colors.blueAccent),
-                  label: Text('Reports User'),
-                ),
-                // 2. Added Complaints Destination for Desktop
-                NavigationRailDestination(
-                  icon: Icon(LucideIcons.megaphone),
-                  selectedIcon: Icon(LucideIcons.megaphone, color: Colors.blueAccent),
-                  label: Text('Report Business'),
+                  label: Text('Reports'),
                 ),
               ],
               trailing: Expanded(
@@ -113,7 +106,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ? null
           : BottomNavigationBar(
         currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed,
+        type: BottomNavigationBarType.fixed, // [cite: 154]
         onTap: (index) => setState(() => _selectedIndex = index),
         selectedItemColor: Colors.blueAccent,
         unselectedItemColor: Colors.grey,
@@ -134,28 +127,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: Icon(LucideIcons.alertTriangle),
             label: 'Reports',
           ),
-          // 3. Added Complaints Item for Mobile
-          BottomNavigationBarItem(
-            icon: Icon(LucideIcons.megaphone),
-            label: 'Complaints',
-          ),
         ],
-      ),
-    );
-  }
-}
-
-// 4. Temporary Placeholder for the Complaint List Page
-// You can move this to a separate file later.
-class AdminComplaintListPage extends StatelessWidget {
-  const AdminComplaintListPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("User Complaints")),
-      body: const Center(
-        child: Text("Complaints Management System"),
       ),
     );
   }

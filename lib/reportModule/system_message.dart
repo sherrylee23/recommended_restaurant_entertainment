@@ -2,45 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-class SystemMessagePage extends StatefulWidget {
+class SystemMessagePage extends StatelessWidget {
   final Map<String, dynamic> userData;
   const SystemMessagePage({super.key, required this.userData});
 
   @override
-  State<SystemMessagePage> createState() => _SystemMessagePageState();
-}
-
-class _SystemMessagePageState extends State<SystemMessagePage> {
-  final supabase = Supabase.instance.client;
-
-  @override
-  void initState() {
-    super.initState();
-    _markRead();
-  }
-
-  Future<void> _markRead() async {
-    try {
-      // Mark all unread messages as read for this user
-      await supabase
-          .from('system_messages')
-          .update({'is_read': true})
-          .eq('user_id', widget.userData['id'])
-          .eq('is_read', false);
-    } catch (e) {
-      debugPrint("Error marking messages as read: $e");
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final supabase = Supabase.instance.client;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          "System Notifications",
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-        ),
+        title: const Text("System Notifications", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
@@ -56,17 +29,14 @@ class _SystemMessagePageState extends State<SystemMessagePage> {
           ),
         ),
         child: SafeArea(
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            // CHANGED: Use stream instead of future to keep UI synced
-            stream: supabase
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: supabase
                 .from('system_messages')
-                .stream(primaryKey: ['id'])
-                .eq('user_id', widget.userData['id'])
+                .select()
+                .eq('user_id', userData['id'])
                 .order('created_at', ascending: false),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return const Center(child: Text("No notifications yet."));
               }
@@ -79,7 +49,6 @@ class _SystemMessagePageState extends State<SystemMessagePage> {
                   final msg = messages[index];
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
-                    elevation: 2,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -90,26 +59,18 @@ class _SystemMessagePageState extends State<SystemMessagePage> {
                             children: [
                               const Icon(LucideIcons.shieldCheck, color: Colors.blueAccent, size: 18),
                               const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  msg['title'] ?? "Official Update",
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                ),
-                              ),
+                              Text(msg['title'] ?? "Official Update",
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                             ],
                           ),
                           const Divider(height: 20),
-                          Text(
-                            msg['content'] ?? "",
-                            style: const TextStyle(color: Colors.black87, fontSize: 14),
-                          ),
-                          const SizedBox(height: 12),
+                          Text(msg['content'] ?? "",
+                              style: const TextStyle(color: Colors.black87, fontSize: 14)),
+                          const SizedBox(height: 10),
                           Align(
                             alignment: Alignment.bottomRight,
                             child: Text(
-                              msg['created_at'] != null
-                                  ? msg['created_at'].toString().substring(0, 16).replaceAll('T', ' ')
-                                  : "",
+                              msg['created_at'].toString().substring(0, 16),
                               style: const TextStyle(fontSize: 10, color: Colors.grey),
                             ),
                           ),

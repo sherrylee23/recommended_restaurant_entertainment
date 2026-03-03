@@ -90,6 +90,7 @@ class _ReportBusinessPageState extends State<ReportBusinessPage> {
         imageUrl = _supabase.storage.from('business_reports').getPublicUrl(path);
       }
 
+      // 2. 插入举报记录到数据库 [cite: 37]
       await _supabase.from('business_reports').insert({
         'profile_id': widget.userData['id'],
         'user_email': _emailController.text.trim(),
@@ -114,7 +115,7 @@ class _ReportBusinessPageState extends State<ReportBusinessPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-          title: const Text("Report a Business", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+          title: const Text("Report Business", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(

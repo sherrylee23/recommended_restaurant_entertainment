@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -25,24 +27,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void initState() {
     super.initState();
-
-    // --- FIX FOR NULL ERROR: Added null-safety checks --- [cite: 13, 15]
+    // --- LOGIC PRESERVED ---
     _imageUrl = widget.userData['profile_url']?.toString();
+    _idController = TextEditingController(text: widget.userData['id']?.toString() ?? "");
+    _usernameController = TextEditingController(text: widget.userData['username']?.toString() ?? "");
+    _emailController = TextEditingController(text: widget.userData['email']?.toString() ?? "");
 
-    // Use toString() and ?? "" to ensure controllers never receive a null object [cite: 13, 15]
-    _idController = TextEditingController(
-      text: widget.userData['id']?.toString() ?? "",
-    );
-
-    _usernameController = TextEditingController(
-      text: widget.userData['username']?.toString() ?? "",
-    );
-
-    _emailController = TextEditingController(
-      text: widget.userData['email']?.toString() ?? "",
-    );
-
-    // Ensure the initial gender matches one of the dropdown options [cite: 13, 15]
     final rawGender = widget.userData['gender']?.toString();
     if (rawGender == "Male" || rawGender == "Female") {
       _selectedGender = rawGender!;
@@ -51,34 +41,25 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  // --- LOGIC PRESERVED: IMAGE PICKING & UPLOADING ---
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
     if (image != null) {
-      setState(() {
-        _imageFile = File(image.path);
-      });
+      setState(() => _imageFile = File(image.path));
     }
   }
 
   Future<String?> _uploadImage() async {
     if (_imageFile == null) return _imageUrl;
-
     try {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.jpg';
       final path = 'profile_pics/$fileName';
-
-      await Supabase.instance.client.storage
-          .from('avatars')
-          .upload(path, _imageFile!);
-
-      return Supabase.instance.client.storage
-          .from('avatars')
-          .getPublicUrl(path);
+      await Supabase.instance.client.storage.from('avatars').upload(path, _imageFile!);
+      return Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
     } catch (e) {
       debugPrint("Upload error: $e");
-      return _imageUrl; // Return old image if upload fails
+      return _imageUrl;
     }
   }
 
@@ -86,36 +67,21 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() => _isSaving = true);
     try {
       final String? newImageUrl = await _uploadImage();
-
-      // Use 'id' for the match if 'user_id' is nullable/unstable [cite: 7, 13]
       final identifier = widget.userData['user_id'] ?? widget.userData['id'];
 
-      await Supabase.instance.client
-          .from('profiles')
-          .update({
+      await Supabase.instance.client.from('profiles').update({
         'username': _usernameController.text.trim(),
         'gender': _selectedGender,
         'profile_url': newImageUrl,
-      })
-          .eq(widget.userData['user_id'] != null ? 'user_id' : 'id', identifier);
+      }).eq(widget.userData['user_id'] != null ? 'user_id' : 'id', identifier);
 
       if (mounted) {
-        final updatedData = await Supabase.instance.client
-            .from('profiles')
-            .select()
-            .eq(widget.userData['user_id'] != null ? 'user_id' : 'id', identifier)
-            .single();
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Profile updated!"), backgroundColor: Colors.green),
-        );
-
+        final updatedData = await Supabase.instance.client.from('profiles').select().eq(widget.userData['user_id'] != null ? 'user_id' : 'id', identifier).single();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile updated!"), backgroundColor: Colors.green));
         Navigator.pop(context, updatedData);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Update Failed: ${e.toString()}"), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Update Failed: ${e.toString()}"), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -125,38 +91,41 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text("Edit Profile", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Edit Profile", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [Colors.blue.shade100, Colors.purple.shade50],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
             child: Column(
               children: [
                 _buildProfileImagePicker(),
-                const SizedBox(height: 30),
-                _buildTextField("Username", _usernameController, enabled: true),
-                const SizedBox(height: 15),
-                _buildGenderDropdown(),
-                const SizedBox(height: 15),
-                _buildTextField("Email Address", _emailController, enabled: false),
-                const SizedBox(height: 15),
-                _buildTextField("User ID (Permanent)", _idController, enabled: false),
                 const SizedBox(height: 40),
+                _buildTextField("Username", _usernameController, enabled: true, icon: LucideIcons.user),
+                const SizedBox(height: 20),
+                _buildGenderDropdown(),
+                const SizedBox(height: 20),
+                _buildTextField("Email Address", _emailController, enabled: false, icon: LucideIcons.mail),
+                const SizedBox(height: 20),
+                _buildTextField("User ID", _idController, enabled: false, icon: LucideIcons.contact),
+                const SizedBox(height: 50),
                 _buildSaveButton(),
+                const SizedBox(height: 30),
               ],
             ),
           ),
@@ -169,47 +138,71 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
-        CircleAvatar(
-          radius: 60,
-          backgroundColor: Colors.white,
-          backgroundImage: _imageFile != null
-              ? FileImage(_imageFile!)
-              : (_imageUrl != null && _imageUrl!.isNotEmpty
-              ? NetworkImage(_imageUrl!)
-              : null) as ImageProvider?,
-          child: (_imageFile == null && (_imageUrl == null || _imageUrl!.isEmpty))
-              ? const Icon(Icons.face, size: 90, color: Colors.brown)
-              : null,
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.purpleAccent]),
+            boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 20)],
+          ),
+          child: CircleAvatar(
+            radius: 65,
+            backgroundColor: const Color(0xFF1A1A35),
+            backgroundImage: _imageFile != null
+                ? FileImage(_imageFile!)
+                : (_imageUrl != null && _imageUrl!.isNotEmpty ? NetworkImage(_imageUrl!) : null) as ImageProvider?,
+            child: (_imageFile == null && (_imageUrl == null || _imageUrl!.isEmpty))
+                ? const Icon(LucideIcons.user, size: 60, color: Colors.white24)
+                : null,
+          ),
         ),
         GestureDetector(
           onTap: _pickImage,
           child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle),
-            child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.cyanAccent,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10)],
+            ),
+            child: const Icon(LucideIcons.camera, color: Color(0xFF0F0C29), size: 20),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {required bool enabled}) {
+  Widget _buildTextField(String label, TextEditingController controller, {required bool enabled, required IconData icon}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          readOnly: !enabled,
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: enabled ? Colors.white : Colors.grey.shade200,
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: Colors.blue.shade100),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.5), fontSize: 13, letterSpacing: 0.5)),
+        ),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: TextField(
+              controller: controller,
+              readOnly: !enabled,
+              style: TextStyle(color: enabled ? Colors.white : Colors.white.withOpacity(0.3)),
+              decoration: InputDecoration(
+                prefixIcon: Icon(icon, size: 18, color: enabled ? Colors.cyanAccent : Colors.white24),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15),
+                  borderSide: const BorderSide(color: Colors.cyanAccent, width: 1),
+                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
+              ),
             ),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
       ],
@@ -220,21 +213,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Gender", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
-        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text("Gender", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.5), fontSize: 13)),
+        ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 15),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.blue.shade100),
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedGender,
               isExpanded: true,
+              dropdownColor: const Color(0xFF1A1A35),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+              icon: const Icon(LucideIcons.chevronDown, color: Colors.cyanAccent, size: 18),
               items: ["Male", "Female"].map((String value) {
-                return DropdownMenuItem<String>(value: value, child: Text(value));
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value, style: const TextStyle(color: Colors.white)),
+                );
               }).toList(),
               onChanged: (newValue) => setState(() => _selectedGender = newValue!),
             ),
@@ -247,27 +248,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      height: 50,
+      height: 55,
       child: Container(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent], // Matched gradient [cite: 37]
-          ),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4)),
-          ],
+          gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent, Colors.purpleAccent]),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
         ),
         child: ElevatedButton(
           onPressed: _isSaving ? null : _updateProfile,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           ),
           child: _isSaving
-              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Text("SAVE CHANGES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xFF0F0C29), strokeWidth: 3))
+              : const Text("SAVE CHANGES", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
         ),
       ),
     );

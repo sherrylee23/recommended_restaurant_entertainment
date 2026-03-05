@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'edit_profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -27,7 +28,7 @@ class UserProfilePageState extends State<UserProfilePage> {
     refreshPosts();
   }
 
-  // --- LOGIC: CALCULATE USER STATUS DYNAMICALLY ---
+  // --- LOGIC PRESERVED ---
   String _calculateStatus() {
     final String? createdAtRaw = widget.userData['created_at'];
     if (createdAtRaw == null) return "New Users";
@@ -47,27 +48,29 @@ class UserProfilePageState extends State<UserProfilePage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(status, style: const TextStyle(fontWeight: FontWeight.bold)),
-        content: Text(description, style: const TextStyle(fontSize: 14, color: Colors.black87)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Got it", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
-          ),
-        ],
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF16162E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.blueAccent, width: 0.5)),
+          title: Text(status, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          content: Text(description, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Got it", style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // --- UPDATED REFRESH LOGIC ---
   Future<void> refreshPosts() async {
     try {
       final supabase = Supabase.instance.client;
       final profileId = widget.userData['id'];
 
-      // MATCHED WITH DISCOVER: Include comments count and user_liked sub-query
       final postsData = await supabase
           .from('posts')
           .select('''
@@ -77,7 +80,6 @@ class UserProfilePageState extends State<UserProfilePage> {
             user_liked:likes(profile_id)
           ''')
           .eq('profile_id', profileId)
-      // Filter sub-query join to check ONLY for the current user
           .eq('user_liked.profile_id', profileId)
           .order('created_at', ascending: false);
 
@@ -121,73 +123,198 @@ class UserProfilePageState extends State<UserProfilePage> {
     final String userId = widget.userData['id']?.toString() ?? "0";
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0F0C29),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(username, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text(username, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [_buildMenuPopup()],
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: RefreshIndicator(
-        onRefresh: refreshPosts,
-        color: Colors.blueAccent,
-        backgroundColor: Colors.white,
-        displacement: 100,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            children: [
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.centerLeft, end: Alignment.centerRight,
-                    colors: [Colors.blue.shade100, Colors.purple.shade50],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 10),
-                      _buildProfileHeader(username, userId),
-                      const SizedBox(height: 20),
-                      _buildStatsAndEditRow(),
-                      const SizedBox(height: 25),
-                    ],
-                  ),
-                ),
-              ),
-              Container(
-                color: Colors.white,
-                child: Column(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 15),
-                      child: Text("MY POSTS", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 12)),
-                    ),
-                    _buildPostGrid(username),
-                  ],
-                ),
-              ),
-            ],
+      // FIX: Move the background decoration here so it covers the WHOLE screen
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
+          ),
+        ),
+        child: RefreshIndicator(
+          onRefresh: refreshPosts,
+          color: Colors.cyanAccent,
+          backgroundColor: const Color(0xFF1A1A35),
+          child: SingleChildScrollView(
+            // FIX: Use AlwaysScrollableScrollPhysics to ensure the gradient doesn't "snap"
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                _buildModernHeader(username, userId),
+                _buildPostSection(username),
+                // FIX: Add a safe area spacer at the very bottom
+                const SizedBox(height: 50),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _buildModernHeader(String username, String userId) {
+    return Container(
+      width: double.infinity,
+      // Reduced bottom padding from 30 to 15
+      padding: const EdgeInsets.only(bottom: 15),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1))),
+      ),
+      child: Column(
+        children: [
+          // This adds just enough space for the AppBar height without the huge SafeArea gap
+          const SizedBox(height: kToolbarHeight + 10),
+          _buildProfileAvatar(username, userId),
+          // Reduced height between avatar and stats from 25 to 15
+          const SizedBox(height: 15),
+          _buildStatsAndEditRow(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileAvatar(String username, String id) {
+    IconData genderIcon = Icons.help_outline;
+    Color genderColor = Colors.grey;
+    final String gender = (widget.userData['gender'] ?? "").toString().toLowerCase();
+    final String? profileUrl = widget.userData['profile_url'];
+
+    if (gender == "female") { genderIcon = Icons.female; genderColor = Colors.pinkAccent; }
+    else if (gender == "male") { genderIcon = Icons.male; genderColor = Colors.cyanAccent; }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 25),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.purpleAccent]),
+              boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15)],
+            ),
+            child: CircleAvatar(
+              radius: 40, // Slightly reduced radius from 45 to 40
+              backgroundColor: const Color(0xFF1A1A35),
+              backgroundImage: profileUrl != null && profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null,
+              child: profileUrl == null || profileUrl.isEmpty ? const Icon(Icons.face, size: 60, color: Colors.white24) : null,
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min, // Forces column to take minimum space
+              children: [
+                Row(children: [
+                  Flexible(child: Text(username, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, overflow: TextOverflow.ellipsis))),
+                  const SizedBox(width: 8),
+                  Icon(genderIcon, size: 18, color: genderColor)
+                ]),
+                Text("ID: $id", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
+                const SizedBox(height: 6), // Reduced from 10 to 6
+                _buildUserStatusBadge(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserStatusBadge() {
+    final String statusTitle = _calculateStatus();
+    return GestureDetector(
+      onTap: () => _showStatusInfoPopup(statusTitle),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.cyanAccent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.cyanAccent.withOpacity(0.5), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(statusTitle, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
+            const SizedBox(width: 6),
+            const Icon(LucideIcons.info, size: 12, color: Colors.cyanAccent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsAndEditRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 25),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(children: [
+            _StatItem(label: "Posts", count: _userPosts.length.toString()),
+            const SizedBox(width: 35),
+            _StatItem(label: "Likes", count: _totalLikes.toString()),
+          ]),
+          ElevatedButton(
+            onPressed: () async {
+              final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfilePage(userData: widget.userData)));
+              if (result != null && result is Map<String, dynamic>) setState(() { widget.userData.addAll(result); });
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white.withOpacity(0.05),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.white.withOpacity(0.2))),
+            ),
+            child: const Text("Edit Profile", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostSection(String username) {
+    return Container(
+      padding: const EdgeInsets.only(top: 20),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 15),
+            child: Text("MY TIMELINE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 12, color: Colors.white.withOpacity(0.5))),
+          ),
+          _buildPostGrid(username),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPostGrid(String username) {
-    if (_isLoading) return const Padding(padding: EdgeInsets.all(50), child: Center(child: CircularProgressIndicator()));
-    if (_userPosts.isEmpty) return const Padding(padding: EdgeInsets.all(100), child: Center(child: Text("No posts yet.", style: TextStyle(color: Colors.grey))));
+    if (_isLoading) return const Padding(padding: EdgeInsets.all(50), child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)));
+    if (_userPosts.isEmpty) return Padding(padding: const EdgeInsets.all(100), child: Center(child: Text("No posts yet.", style: TextStyle(color: Colors.white.withOpacity(0.3)))));
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
+      // FIX: Increased bottom padding from 10 to 40
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 10, bottom: 40),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.68,
+        crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.72,
       ),
       itemCount: _userPosts.length,
       itemBuilder: (context, index) {
@@ -195,70 +322,50 @@ class UserProfilePageState extends State<UserProfilePage> {
         final List<dynamic> media = post['media_urls'] ?? [];
         final String profileUrl = widget.userData['profile_url'] ?? "";
 
-        // Total Counts
-        final likesData = post['likes'] as List?;
-        final int postLikeCount = (likesData != null && likesData.isNotEmpty) ? likesData.first['count'] ?? 0 : 0;
-        final commentsData = post['comments'] as List?;
-        final int postCommentCount = (commentsData != null && commentsData.isNotEmpty) ? commentsData.first['count'] ?? 0 : 0;
-
-        // --- LOGIC: IS LIKED BY ME ---
-        // user_liked will not be empty if the current user has a record in the likes table
-        final userLikedData = post['user_liked'] as List?;
-        final bool isLikedByMe = (userLikedData != null && userLikedData.isNotEmpty);
+        final int postLikeCount = (post['likes'] as List?)?.isNotEmpty == true ? post['likes'].first['count'] ?? 0 : 0;
+        final int postCommentCount = (post['comments'] as List?)?.isNotEmpty == true ? post['comments'].first['count'] ?? 0 : 0;
+        final bool isLikedByMe = (post['user_liked'] as List?)?.isNotEmpty == true;
 
         return GestureDetector(
           onTap: () async {
             final Map<String, dynamic> postWithProfile = Map.from(post);
             postWithProfile['profiles'] = {'profile_url': profileUrl, 'username': username};
-
-            // --- IMMEDIATE REFRESH PATTERN ---
-            // await the return and trigger refresh immediately to update counts
-            await Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => PostDetailPage(
-                        post: postWithProfile,
-                        userName: username,
-                        viewerProfileId: widget.userData['id']
-                    )
-                )
-            );
-            refreshPosts(); // Updates likes/comments instantly upon return
+            await Navigator.push(context, MaterialPageRoute(builder: (context) => PostDetailPage(post: postWithProfile, userName: username, viewerProfileId: widget.userData['id'])));
+            refreshPosts();
           },
           child: Container(
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))]),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
                     child: media.isNotEmpty
-                        ? Image.network(media[0], width: double.infinity, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: Colors.grey.shade100, child: const Icon(LucideIcons.image, color: Colors.grey)))
-                        : Container(color: Colors.grey.shade100, width: double.infinity, child: const Icon(LucideIcons.image, color: Colors.grey)),
+                        ? Image.network(media[0], width: double.infinity, fit: BoxFit.cover)
+                        : Container(color: Colors.white.withOpacity(0.05), child: const Icon(LucideIcons.image, color: Colors.white24)),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(post['title'] ?? "Untitled", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      const SizedBox(height: 6),
+                      Text(post['title'] ?? "Untitled", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
-                          CircleAvatar(radius: 10, backgroundImage: profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null, child: profileUrl.isEmpty ? const Icon(Icons.person, size: 10) : null),
-                          const SizedBox(width: 6),
-                          Expanded(child: Text(username, style: const TextStyle(fontSize: 11, color: Colors.black54), overflow: TextOverflow.ellipsis)),
-
-                          // --- MATCHED UI ROW ---
-                          const Icon(Icons.mode_comment_outlined, size: 12, color: Colors.grey),
-                          const SizedBox(width: 2),
-                          Text("$postCommentCount", style: const TextStyle(fontSize: 10)),
-                          const SizedBox(width: 5),
-                          Icon(isLikedByMe ? Icons.favorite : Icons.favorite_border, size: 14, color: isLikedByMe ? Colors.redAccent : Colors.grey),
-                          const SizedBox(width: 2),
-                          Text("$postLikeCount", style: const TextStyle(fontSize: 11)),
+                          Icon(LucideIcons.messageSquare, size: 12, color: Colors.white.withOpacity(0.4)),
+                          const SizedBox(width: 4),
+                          Text("$postCommentCount", style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.6))),
+                          const Spacer(),
+                          Icon(isLikedByMe ? Icons.favorite : Icons.favorite_border, size: 14, color: isLikedByMe ? Colors.redAccent : Colors.white.withOpacity(0.4)),
+                          const SizedBox(width: 4),
+                          Text("$postLikeCount", style: TextStyle(fontSize: 11, color: isLikedByMe ? Colors.redAccent : Colors.white.withOpacity(0.6))),
                         ],
                       ),
                     ],
@@ -274,7 +381,9 @@ class UserProfilePageState extends State<UserProfilePage> {
 
   Widget _buildMenuPopup() {
     return PopupMenuButton<String>(
-      icon: const Icon(Icons.menu, color: Colors.black87),
+      icon: const Icon(LucideIcons.moreVertical, color: Colors.white),
+      color: const Color(0xFF1A1A35),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: Colors.white.withOpacity(0.1))),
       onSelected: (value) async {
         switch (value) {
           case 'logout': _handleLogout(); break;
@@ -289,81 +398,18 @@ class UserProfilePageState extends State<UserProfilePage> {
         }
       },
       itemBuilder: (context) => [
-        const PopupMenuItem(value: 'personalized', child: Row(children: [Icon(Icons.auto_awesome, color: Colors.blueAccent, size: 20), SizedBox(width: 10), Text("Personalized")])),
-        const PopupMenuItem(value: 'reports', child: Row(children: [Icon(Icons.description_outlined, color: Colors.black87, size: 20), SizedBox(width: 10), Text("My Reports")])),
-        const PopupMenuItem(value: 'help', child: Row(children: [Icon(Icons.help_outline, color: Colors.black87, size: 20), SizedBox(width: 10), Text("Help Center")])),
-        const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, color: Colors.redAccent, size: 20), SizedBox(width: 10), Text("Logout", style: TextStyle(color: Colors.redAccent))])),
+        _buildPopupItem('personalized', Icons.auto_awesome, "Personalized", Colors.cyanAccent),
+        _buildPopupItem('reports', Icons.description_outlined, "My Reports", Colors.white),
+        _buildPopupItem('help', Icons.help_outline, "Help Center", Colors.white),
+        _buildPopupItem('logout', Icons.logout, "Logout", Colors.redAccent),
       ],
     );
   }
 
-  Widget _buildProfileHeader(String username, String id) {
-    IconData genderIcon = Icons.help_outline; Color genderColor = Colors.grey;
-    final String gender = (widget.userData['gender'] ?? "").toString().toLowerCase();
-    final String? profileUrl = widget.userData['profile_url'];
-    if (gender == "female") { genderIcon = Icons.female; genderColor = Colors.pinkAccent; }
-    else if (gender == "male") { genderIcon = Icons.male; genderColor = Colors.blueAccent; }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 45, backgroundColor: Colors.white,
-            backgroundImage: profileUrl != null && profileUrl.isNotEmpty ? NetworkImage(profileUrl) : null,
-            child: profileUrl == null || profileUrl.isEmpty ? const Icon(Icons.face, size: 70, color: Colors.brown) : null,
-          ),
-          const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [Text(username, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(width: 5), Icon(genderIcon, size: 18, color: genderColor)]),
-              Text("ID:$id", style: const TextStyle(color: Colors.black54, fontSize: 14)),
-              const SizedBox(height: 5),
-              _buildUserStatusBadge(),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUserStatusBadge() {
-    final String statusTitle = _calculateStatus();
-    return GestureDetector(
-      onTap: () => _showStatusInfoPopup(statusTitle),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.5), borderRadius: BorderRadius.circular(5), border: Border.all(color: Colors.blueAccent.withOpacity(0.3))),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(statusTitle, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-            const SizedBox(width: 4),
-            const Icon(Icons.info_outline, size: 12, color: Colors.blueAccent),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsAndEditRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(children: [_StatItem(label: "Posts", count: _userPosts.length.toString()), const SizedBox(width: 30), _StatItem(label: "Likes", count: _totalLikes.toString())]),
-          ElevatedButton(
-            onPressed: () async {
-              final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => EditProfilePage(userData: widget.userData)));
-              if (result != null && result is Map<String, dynamic>) setState(() { widget.userData.addAll(result); });
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.white.withOpacity(0.9), foregroundColor: Colors.black87, elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade300))),
-            child: const Text("Edit Profile", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
+  PopupMenuItem<String> _buildPopupItem(String value, IconData icon, String text, Color color) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(children: [Icon(icon, color: color.withOpacity(0.8), size: 20), const SizedBox(width: 12), Text(text, style: TextStyle(color: color))]),
     );
   }
 }
@@ -373,6 +419,12 @@ class _StatItem extends StatelessWidget {
   const _StatItem({required this.label, required this.count});
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(count, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54))]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(count, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
+      ],
+    );
   }
 }

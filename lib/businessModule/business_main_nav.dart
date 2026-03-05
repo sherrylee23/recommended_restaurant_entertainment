@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'business_profile.dart';
 import 'business_booking_history.dart';
 import 'inbox_page.dart';
@@ -14,47 +16,114 @@ class BusinessMainNavigation extends StatefulWidget {
 
 class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
   int _selectedIndex = 0;
+  final _supabase = Supabase.instance.client;
 
   @override
   Widget build(BuildContext context) {
-    // Added BusinessBookingHistory to the list of pages
+    final dynamic businessId = widget.businessData['id'];
+
     final List<Widget> pages = [
       BusinessProfilePage(businessData: widget.businessData),
-      BusinessBookingHistory(businessId: widget.businessData['id']), // New Tab
+      BusinessBookingHistory(businessId: widget.businessData['id']),
       BusinessInboxPage(businessData: widget.businessData),
     ];
 
     return Scaffold(
+      extendBody: true, // Crucial: Allows pages to draw behind the nav bar
+      backgroundColor: const Color(0xFF0F0C29),
       body: IndexedStack(index: _selectedIndex, children: pages),
-      bottomNavigationBar: BottomAppBar(
-        elevation: 10,
-        child: SizedBox(
-          height: 70,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              // Profile Tab
-              IconButton(
-                icon: Icon(LucideIcons.user,
-                    color: _selectedIndex == 0 ? Colors.blueAccent : Colors.grey),
-                onPressed: () => setState(() => _selectedIndex = 0),
-              ),
 
-              // Booking History Tab (Middle)
-              IconButton(
-                icon: Icon(LucideIcons.calendarCheck,
-                    color: _selectedIndex == 1 ? Colors.blueAccent : Colors.grey),
-                onPressed: () => setState(() => _selectedIndex = 1),
+      // Floating Glassmorphic Navigation Bar
+      bottomNavigationBar: Container(
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 25), // Floating effect
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: Container(
+              height: 75,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
               ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // Profile Tab
+                  _buildNavItem(LucideIcons.user, 0),
 
-              // Inbox Tab
-              IconButton(
-                icon: Icon(LucideIcons.messageSquare,
-                    color: _selectedIndex == 2 ? Colors.blueAccent : Colors.grey),
-                onPressed: () => setState(() => _selectedIndex = 2),
+                  // Booking History Tab
+                  _buildNavItem(LucideIcons.calendarCheck, 1),
+
+                  // Inbox Tab with Real-time Logic Preserved
+                  StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _supabase
+                        .from('messages')
+                        .stream(primaryKey: ['id'])
+                        .eq('receiver_id', businessId),
+                    builder: (context, snapshot) {
+                      bool hasUnread = false;
+                      if (snapshot.hasData) {
+                        hasUnread = snapshot.data!.any((m) => m['is_read'] == false);
+                      }
+
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          _buildNavItem(LucideIcons.messageSquare, 2),
+                          if (hasUnread)
+                            Positioned(
+                              right: 18,
+                              top: 22,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                    color: Colors.redAccent,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                        color: const Color(0xFF1A1A35),
+                                        width: 1.5
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.redAccent.withOpacity(0.5),
+                                        blurRadius: 5,
+                                      )
+                                    ]
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, int index) {
+    bool isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.cyanAccent.withOpacity(0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Icon(
+          icon,
+          size: 26,
+          color: isSelected ? Colors.cyanAccent : Colors.white.withOpacity(0.4),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -19,7 +20,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   void initState() {
     super.initState();
-    // Global listener for the recovery event
+    // Global listener for the recovery event preserved
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery) {
         Navigator.pushReplacement(
@@ -37,13 +38,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
+  // --- Logic Preserved ---
   Future<void> _sendResetLink() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) return;
 
     setState(() => _isLoading = true);
     try {
-      // Must match Supabase Dashboard Redirect URL
       await Supabase.instance.client.auth.resetPasswordForEmail(
         email,
         redirectTo: 'io.supabase.nomi://reset-callback/',
@@ -55,9 +56,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: ${e.toString()}"), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: ${e.toString()}"), backgroundColor: Colors.redAccent),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -66,61 +69,134 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.blue.shade100, Colors.purple.shade50],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(LucideIcons.unlock, size: 80, color: Colors.blueAccent),
-                const SizedBox(height: 20),
-                const Text("Reset Password", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87)),
-                const SizedBox(height: 10),
-                const Text("Enter your email to receive a recovery link.", textAlign: TextAlign.center, style: TextStyle(color: Colors.black54)),
-                const SizedBox(height: 30),
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: "Registered Email",
-                    prefixIcon: const Icon(LucideIcons.mail, color: Colors.blueAccent),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.9),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent]),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _sendResetLink,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text("SEND RECOVERY EMAIL", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ),
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Back to Login", style: TextStyle(color: Colors.blueAccent))),
-              ],
+      backgroundColor: const Color(0xFF0F0C29),
+      body: Stack(
+        children: [
+          // 1. CONTINUOUS BACKGROUND WALLPAPER
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
+              ),
             ),
           ),
-        ),
+
+          // 2. CONTENT LAYER
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Glowing Icon
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.blueAccent.withOpacity(0.1),
+                      ),
+                      child: const Icon(LucideIcons.unlock, size: 80, color: Color(0xFF8ECAFF)),
+                    ),
+                    const SizedBox(height: 30),
+                    const Text(
+                        "Reset Password",
+                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                        "Enter your email to receive a recovery link.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 15)
+                    ),
+                    const SizedBox(height: 40),
+
+                    // Glassmorphic Input Area
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(25),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          padding: const EdgeInsets.all(25),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(25),
+                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          ),
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: _emailController,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: InputDecoration(
+                                  labelText: "Registered Email",
+                                  labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                                  prefixIcon: const Icon(LucideIcons.mail, color: Color(0xFF8ECAFF), size: 20),
+                                  filled: true,
+                                  fillColor: Colors.white.withOpacity(0.05),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+
+                              // CONSISTENT BUTTON (Matches Login/Register)
+                              SizedBox(
+                                width: double.infinity,
+                                height: 55,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent],
+                                    ),
+                                    borderRadius: BorderRadius.circular(15),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF4A90E2).withOpacity(0.3),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: _isLoading ? null : _sendResetLink,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                    ),
+                                    child: _isLoading
+                                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                        : const Text(
+                                        "SEND RECOVERY EMAIL",
+                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 25),
+                    TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text(
+                            "Back to Login",
+                            style: TextStyle(color: Color(0xFF8ECAFF), fontWeight: FontWeight.w600)
+                        )
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -358,11 +358,12 @@ class UserProfilePageState extends State<UserProfilePage> {
                       Text(post['title'] ?? "Untitled", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
                       const SizedBox(height: 8),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.end, // Pushes everything to the right
                         children: [
-                          Icon(LucideIcons.messageSquare, size: 12, color: Colors.white.withOpacity(0.4)),
+                          Icon(LucideIcons.messageCircle, size: 12, color: Colors.white.withOpacity(0.4)),
                           const SizedBox(width: 4),
                           Text("$postCommentCount", style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.6))),
-                          const Spacer(),
+                          const SizedBox(width: 8), // Add spacing between comment and like groups
                           Icon(isLikedByMe ? Icons.favorite : Icons.favorite_border, size: 14, color: isLikedByMe ? Colors.redAccent : Colors.white.withOpacity(0.4)),
                           const SizedBox(width: 4),
                           Text("$postLikeCount", style: TextStyle(fontSize: 11, color: isLikedByMe ? Colors.redAccent : Colors.white.withOpacity(0.6))),

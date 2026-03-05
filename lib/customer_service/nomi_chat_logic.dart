@@ -15,7 +15,7 @@ class NomiChatLogic {
     _model = GenerativeModel(
       // FIXED: Always use 'gemini-1.5-flash' for stability in Flutter
       model: 'gemini-3-flash-preview',
-      apiKey: '',
+      apiKey: 'AIzaSyCrh9Q81SiWKclr69rt19z_Zwixg5ZsNIo',
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),

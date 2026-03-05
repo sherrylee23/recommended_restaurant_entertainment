@@ -14,6 +14,7 @@ import 'package:recommended_restaurant_entertainment/loginModule/updatePassword_
 import 'package:recommended_restaurant_entertainment/postModule/createPost.dart';
 import 'package:recommended_restaurant_entertainment/userModule/user_profile.dart';
 import 'package:recommended_restaurant_entertainment/chat/chat_page.dart';
+import 'get_start.dart';
 
 // 1. Your Supabase Credentials preserved
 const String url = 'https://bljokgoarqfpkcthkmvq.supabase.co';
@@ -42,7 +43,8 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      // Change this from LoginPage() to GetStartedPage()
+      home: const GetStartedPage(),
     );
   }
 }

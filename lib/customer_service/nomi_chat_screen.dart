@@ -209,7 +209,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
             ? NetworkImage(widget.userData['profile_url'])
             : null,
         child: isBot
-            ? const Text("🤖", style: TextStyle(fontSize: 18))
+            ? const Text("👻", style: TextStyle(fontSize: 18))
             : (!isBot && widget.userData['profile_url'] == null
             ? const Icon(LucideIcons.user, size: 14, color: Colors.white70)
             : null),

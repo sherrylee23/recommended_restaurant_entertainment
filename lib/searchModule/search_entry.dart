@@ -1,3 +1,4 @@
+import 'dart:ui'; // Required for Glassmorphism
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,11 +16,9 @@ class SearchEntryPage extends StatefulWidget {
 class _SearchEntryPageState extends State<SearchEntryPage> {
   final TextEditingController _controller = TextEditingController();
 
-  // State variables for categories
   List<String> _dynamicCategories = [];
   bool _isLoadingCategories = true;
 
-  // State variables for AI Top Ranking Module
   List<Map<String, dynamic>> _topRankedShops = [];
   bool _isLoadingRankings = true;
 
@@ -30,7 +29,7 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     _fetchTopRankings();
   }
 
-  // --- DATA FETCHING LOGIC ---
+  // --- LOGIC PRESERVED ---
 
   Future<void> _fetchCategoriesFromSupabase() async {
     try {
@@ -98,14 +97,9 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     }
   }
 
-  // --- MODIFIED SEARCH SUBMISSION LOGIC ---
-
   Future<void> _submitSearch(String query) async {
     final String trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) return;
-
-    // AI logic (increment_interest_counts) has been removed from here.
-    // Searching is now a neutral action that does not affect the user profile.
 
     if (mounted) {
       Navigator.push(
@@ -120,113 +114,206 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     }
   }
 
-  // --- UI BUILDER ---
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: TextField(
-          controller: _controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: "Search location, title, or category...",
-            border: InputBorder.none,
-            suffixIcon: IconButton(
-              icon: const Icon(LucideIcons.search, color: Colors.black, size: 25),
-              onPressed: () => _submitSearch(_controller.text),
-            ),
+      extendBodyBehindAppBar: true,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
           ),
-          onSubmitted: _submitSearch,
         ),
-      ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
-              children: [
-                Icon(LucideIcons.trophy, color: Colors.orange, size: 20),
-                SizedBox(width: 8),
-                Text("Top Rated Locations",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ],
+            // --- GLASS SEARCH BAR ---
+            _buildGlassAppBar(context),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Section: Top Rated
+                    _buildSectionHeader(LucideIcons.trophy, "Top Rated Locations", Colors.orangeAccent),
+                    const SizedBox(height: 12),
+                    _isLoadingRankings
+                        ? const Center(child: CircularProgressIndicator(color: Colors.white24))
+                        : _buildRankedList(),
+
+                    const SizedBox(height: 35),
+
+                    // Section: Quick Categories
+                    _buildSectionHeader(LucideIcons.layoutGrid, "Quick Categories", Colors.blueAccent),
+                    const SizedBox(height: 12),
+                    _isLoadingCategories
+                        ? const Center(child: CircularProgressIndicator(color: Colors.white24))
+                        : _buildCategoryWrap(),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            if (_isLoadingRankings)
-              const Center(child: CircularProgressIndicator())
-            else
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _topRankedShops.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final shop = _topRankedShops[index];
-                    return ListTile(
-                      leading: Text("${index + 1}",
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent, fontSize: 16)),
-                      title: Text(
-                        shop['location_name'] ?? 'Unknown Location',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 18),
-                          const SizedBox(width: 4),
-                          Text(
-                            shop['avg_rating'].toStringAsFixed(1),
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      onTap: () => _submitSearch(shop['location_name']),
-                    );
-                  },
-                ),
-              ),
-
-            const SizedBox(height: 30),
-
-            const Text("Quick Categories",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            if (_isLoadingCategories)
-              const Center(child: CircularProgressIndicator())
-            else if (_dynamicCategories.isEmpty)
-              const Text("No categories found in database.",
-                  style: TextStyle(color: Colors.grey))
-            else
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: _dynamicCategories.map((cat) {
-                  return ActionChip(
-                    label: Text(cat),
-                    backgroundColor: Colors.blue.shade50,
-                    side: BorderSide.none,
-                    onPressed: () => _submitSearch(cat),
-                  );
-                }).toList(),
-              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildGlassAppBar(BuildContext context) {
+    return ClipRRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        child: Container(
+          padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top + 10, bottom: 15, left: 10, right: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1))),
+          ),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(LucideIcons.arrowLeft, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+              Expanded(
+                child: Container(
+                  height: 45,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: TextField(
+                    controller: _controller,
+                    autofocus: true,
+                    style: const TextStyle(color: Colors.white, fontSize: 15),
+                    decoration: InputDecoration(
+                      hintText: "Search location, title...",
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                      suffixIcon: IconButton(
+                        icon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
+                        onPressed: () => _submitSearch(_controller.text),
+                      ),
+                    ),
+                    onSubmitted: _submitSearch,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(IconData icon, String title, Color iconColor) {
+    return Row(
+      children: [
+        Icon(icon, color: iconColor, size: 20),
+        const SizedBox(width: 8),
+        Text(title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white, letterSpacing: 0.5)),
+      ],
+    );
+  }
+
+  Widget _buildRankedList() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(25),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _topRankedShops.length,
+            separatorBuilder: (context, index) => Divider(height: 1, color: Colors.white.withOpacity(0.05)),
+            itemBuilder: (context, index) {
+              final shop = _topRankedShops[index];
+              return ListTile(
+                leading: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: index == 0 ? Colors.orangeAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text("${index + 1}",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: index == 0 ? Colors.orangeAccent : Colors.white70,
+                            fontSize: 14)),
+                  ),
+                ),
+                title: Text(
+                  shop['location_name'] ?? 'Unknown Location',
+                  style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.white, fontSize: 15),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
+                    const SizedBox(width: 4),
+                    Text(
+                      shop['avg_rating'].toStringAsFixed(1),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                    ),
+                  ],
+                ),
+                onTap: () => _submitSearch(shop['location_name']),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryWrap() {
+    if (_dynamicCategories.isEmpty) {
+      return const Text("No categories found.", style: TextStyle(color: Colors.white38));
+    }
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: _dynamicCategories.map((cat) {
+        return GestureDetector(
+          onTap: () => _submitSearch(cat),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white.withOpacity(0.15)),
+                ),
+                child: Text(
+                  cat,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }

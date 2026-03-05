@@ -1,6 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:recommended_restaurant_entertainment/userModule/feedback.dart';
-import 'package:recommended_restaurant_entertainment/customer_service/chatbot.dart';
+import 'package:recommended_restaurant_entertainment/customer_service/nomi_chat_screen.dart';
 
 class HelpCenterPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -10,67 +12,59 @@ class HelpCenterPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
+          icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           "Help Center",
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-            colors: [
-              Colors.blue.shade100,
-              Colors.purple.shade50,
-            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
           ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column( // Fixed: Restored missing Column
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 24),
-                _buildSectionHeader("Support"),
+                _buildSectionHeader("SUPPORT"),
+                const SizedBox(height: 12),
                 _buildSectionCard([
-                  // Chat with Nomi Item
-                  _buildSupportItem("Chat with Nomi", Icons.chat_bubble_outline, context),
-
-                  const Divider(height: 1, indent: 16, endIndent: 16),
-
-                  // Feedback Item
-                  ListTile(
-                    title: const Text("Feedback", style: TextStyle(fontSize: 16)),
-                    trailing: const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Colors.black54,
+                  _buildSupportItem(
+                    title: "Chat with Nomi",
+                    icon: LucideIcons.bot,
+                    context: context,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ChatNomiPage(userData: userData)),
                     ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FeedbackPage(userData: userData),
-                        ),
-                      );
-                    },
+                  ),
+                  Divider(height: 1, color: Colors.white.withOpacity(0.1), indent: 16, endIndent: 16),
+                  _buildSupportItem(
+                    title: "Feedback",
+                    icon: LucideIcons.messageSquare,
+                    context: context,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => FeedbackPage(userData: userData)),
+                    ),
                   ),
                 ]),
-
-                const SizedBox(height: 24),
-
               ],
             ),
           ),
@@ -83,14 +77,29 @@ class HelpCenterPage extends StatelessWidget {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: Colors.grey[700],
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+      padding: const EdgeInsets.only(left: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: Colors.cyanAccent,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.5), blurRadius: 6)],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -98,47 +107,42 @@ class HelpCenterPage extends StatelessWidget {
   Widget _buildSectionCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Column(children: children),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Column(children: children),
+        ),
+      ),
     );
   }
 
-  Widget _buildHelpItem(String title, BuildContext context) {
+  Widget _buildSupportItem({
+    required String title,
+    required IconData icon,
+    required BuildContext context,
+    required VoidCallback onTap
+  }) {
     return ListTile(
-      title: Text(title, style: const TextStyle(fontSize: 16)),
-      trailing: const Icon(
-        Icons.arrow_forward_ios,
-        size: 16,
-        color: Colors.black54,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      title: Text(
+          title,
+          style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.w500)
       ),
-      onTap: () {
-        // Implement FAQ navigation here if needed
-      },
-    );
-  }
-
-  Widget _buildSupportItem(String title, IconData icon, BuildContext context) {
-    return ListTile(
-      title: Text(title, style: const TextStyle(fontSize: 16)),
-      trailing: Icon(icon, size: 24, color: Colors.black87),
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            // Correctly passing userData to Chatbot
-            builder: (context) => ChatNomiPage(userData: userData),
-          ),
-        );
-      },
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.cyanAccent.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 20, color: Colors.cyanAccent),
+      ),
+      trailing: const Icon(LucideIcons.chevronRight, size: 18, color: Colors.white24),
+      onTap: onTap,
     );
   }
 }

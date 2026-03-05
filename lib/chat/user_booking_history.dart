@@ -1,6 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'view_business_profile.dart';
 
 class UserBookingHistoryPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -9,146 +12,198 @@ class UserBookingHistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
-    final String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final DateTime now = DateTime.now();
+    final String today = DateFormat('yyyy-MM-dd').format(now);
+    final String currentTimeString = DateFormat('HH:mm:ss').format(now);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text("My Bookings", style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0.5,
-        foregroundColor: Colors.black,
+        title: const Text("My Booking History", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: supabase
-            .from('bookings')
-            .stream(primaryKey: ['id'])
-            .eq('user_id', userData['id'].toString())
-            .order('booking_date', ascending: false),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+      body: Container(
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
+          ),
+        ),
+        child: StreamBuilder<List<Map<String, dynamic>>>(
+          stream: supabase
+              .from('bookings')
+              .stream(primaryKey: ['id'])
+              .eq('user_id', userData['id'].toString())
+              .order('booking_date', ascending: false),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) return _buildStatusText("Error: ${snapshot.error}");
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
 
-          final bookings = snapshot.data!;
-          final todayBookings = bookings.where((b) => b['booking_date'] == today).toList();
+            final bookings = snapshot.data!;
+            if (bookings.isEmpty) return _buildStatusText("No bookings found.");
 
-          if (bookings.isEmpty) return const Center(child: Text("No bookings yet."));
+            // --- LOGIC: Filter Today's Active Bookings ---
+            final upcomingToday = bookings.where((b) {
+              bool isToday = b['booking_date'] == today;
+              String bTime = b['booking_time'] ?? "00:00:00";
+              if (bTime.length == 5) bTime += ":00";
+              String status = (b['status'] ?? "").toLowerCase();
+              return isToday && bTime.compareTo(currentTimeString) >= 0 && status != "rejected" && status != "cancelled";
+            }).toList();
 
-          return Column(
-            children: [
-              if (todayBookings.isNotEmpty) _buildTodayReminder(todayBookings),
-
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: bookings.length,
-                  itemBuilder: (context, index) {
-                    final b = bookings[index];
-                    final String bookingTime = b['booking_time'] ?? "--:--";
-
-                    return FutureBuilder<Map<String, dynamic>>(
-                      future: supabase
-                          .from('business_profiles')
-                          .select('*, locations!inner(area)')
-                          .eq('id', b['business_id'])
-                          .single(),
-                      builder: (context, bizSnapshot) {
-                        if (!bizSnapshot.hasData) return const SizedBox(height: 100);
-
-                        final bizData = bizSnapshot.data!;
-                        final area = bizData['locations']['area'];
-
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            side: b['booking_date'] == today
-                                ? const BorderSide(color: Colors.orangeAccent, width: 2)
-                                : BorderSide.none,
-                          ),
-                          child: ExpansionTile(
-                            leading: Icon(
-                                Icons.event_available,
-                                color: b['booking_date'] == today ? Colors.orange : Colors.blue
-                            ),
-                            title: Text(bizData['business_name'] ?? "Unknown",
-                                style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text("${b['booking_date']} • $bookingTime • ${area ?? 'Nearby'}"),
-                            children: [
-                              const Divider(),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    _buildInfoChip(Icons.access_time, bookingTime, Colors.blue),
-                                    _buildInfoChip(Icons.people, "${b['pax']} Pax", Colors.purple),
-                                    _buildInfoChip(Icons.info_outline, b['status'] ?? "Pending", Colors.orange),
-                                  ],
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.explore, size: 16, color: Colors.blueAccent),
-                                    const SizedBox(width: 8),
-                                    Text("Also in $area:",
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                  ],
-                                ),
-                              ),
-                              _buildAreaSuggestions(bizData['id'], area),
-                              const SizedBox(height: 15),
-                            ],
-                          ),
-                        );
+            return SafeArea(
+              child: Column(
+                children: [
+                  if (upcomingToday.isNotEmpty) _buildTodayReminder(upcomingToday),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(20),
+                      itemCount: bookings.length,
+                      itemBuilder: (context, index) {
+                        final b = bookings[index];
+                        return _buildBookingCard(context, b, today, currentTimeString, supabase);
                       },
-                    );
-                  },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingCard(BuildContext context, Map<String, dynamic> b, String today, String currentTime, SupabaseClient supabase) {
+    final String bookingTime = b['booking_time'] ?? "--:--";
+    final String status = (b['status'] ?? "").toLowerCase();
+    final bool isToday = b['booking_date'] == today;
+    String bTimeCompare = bookingTime.length == 5 ? "$bookingTime:00" : bookingTime;
+
+    final bool isPast = isToday && bTimeCompare.compareTo(currentTime) < 0;
+    final bool isInactive = status == "rejected" || status == "cancelled";
+    final bool isHighlyActive = isToday && !isPast && !isInactive;
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: supabase.from('business_profiles').select('*, locations!inner(area)').eq('id', b['business_id']).single(),
+      builder: (context, bizSnapshot) {
+        if (!bizSnapshot.hasData) return const SizedBox(height: 100);
+
+        final bizData = bizSnapshot.data!;
+        final area = bizData['locations']['area'];
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Opacity(
+            opacity: (isPast || isInactive) ? 0.4 : 1.0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(isHighlyActive ? 0.1 : 0.03),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isHighlyActive ? Colors.orangeAccent.withOpacity(0.5) : Colors.white.withOpacity(0.1),
+                      width: isHighlyActive ? 2 : 1,
+                    ),
+                  ),
+                  child: ExpansionTile(
+                    iconColor: Colors.white,
+                    collapsedIconColor: Colors.white38,
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isHighlyActive ? Colors.orangeAccent.withOpacity(0.2) : Colors.blueAccent.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isHighlyActive ? LucideIcons.zap : LucideIcons.calendar,
+                        color: isHighlyActive ? Colors.orangeAccent : Colors.blueAccent,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      bizData['business_name'] ?? "Unknown",
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(
+                      "${b['booking_date']} • $bookingTime • ${area ?? 'Nearby'}",
+                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12),
+                    ),
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Divider(color: Colors.white10),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildInfoChip(LucideIcons.clock, bookingTime, Colors.blueAccent),
+                                _buildInfoChip(LucideIcons.users, "${b['pax']} Pax", Colors.purpleAccent),
+                                _buildInfoChip(
+                                  isInactive ? LucideIcons.xCircle : LucideIcons.checkCircle,
+                                  status.toUpperCase(),
+                                  isInactive ? Colors.redAccent : Colors.greenAccent,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            _buildAreaSuggestions(bizData['id'], area, supabase),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
-          );
-        },
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildInfoChip(IconData icon, String label, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-      ],
-    );
-  }
-
-  Widget _buildTodayReminder(List<Map<String, dynamic>> todayBookings) {
+  Widget _buildTodayReminder(List<Map<String, dynamic>> upcomingToday) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.orange.shade400, Colors.orange.shade700]),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.orange.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))],
+        gradient: const LinearGradient(colors: [Color(0xFFFF512F), Color(0xFFDD2476)]),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFFDD2476).withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8)),
+        ],
       ),
       child: Row(
         children: [
-          const Icon(Icons.notification_important, color: Colors.white, size: 28),
-          const SizedBox(width: 12),
+          const Icon(LucideIcons.partyPopper, color: Colors.white, size: 30),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  "Upcoming Today!",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                const Text("Upcoming Today!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 2),
                 Text(
-                  "Next at ${todayBookings.first['booking_time']}. You have ${todayBookings.length} booking(s) total.",
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  "Next at ${upcomingToday.first['booking_time']}. Enjoy your visit!",
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
                 ),
               ],
             ),
@@ -158,57 +213,99 @@ class UserBookingHistoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildAreaSuggestions(dynamic currentBizId, String? area) {
+  Widget _buildAreaSuggestions(dynamic currentBizId, String? area, SupabaseClient supabase) {
     if (area == null) return const SizedBox.shrink();
-    final supabase = Supabase.instance.client;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("ALSO IN $area", style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        const SizedBox(height: 12),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: supabase.from('business_profiles').select('*, locations!inner(*)').eq('locations.area', area).neq('id', currentBizId).limit(5),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const SizedBox.shrink();
+            final suggestions = snapshot.data!;
+            if (suggestions.isEmpty) return const SizedBox.shrink();
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: supabase
-          .from('business_profiles')
-          .select('*, locations!inner(*)')
-          .eq('locations.area', area)
-          .neq('id', currentBizId)
-          .limit(5),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: LinearProgressIndicator());
-        }
-        final suggestions = snapshot.data ?? [];
-        if (suggestions.isEmpty) return const SizedBox.shrink();
-
-        return SizedBox(
-          height: 80,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: suggestions.length,
-            itemBuilder: (context, index) {
-              final item = suggestions[index];
-              return Container(
-                width: 160,
-                margin: const EdgeInsets.only(right: 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(item['business_name'] ?? "Shop",
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    Text(item['business_type'] ?? "Entertainment",
-                        style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
+            return SizedBox(
+              height: 75,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: suggestions.length,
+                itemBuilder: (context, index) {
+                  final item = suggestions[index];
+                  return GestureDetector(
+                    // inside _buildAreaSuggestions in UserBookingHistoryPage
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => UserViewBusinessPage(
+                            businessData: item,
+                            userData: userData, // Corrected parameter name
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 160,
+                      margin: const EdgeInsets.only(right: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                    item['business_name'] ?? "",
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis
+                                ),
+                              ),
+                              const Icon(LucideIcons.chevronRight, color: Colors.cyanAccent, size: 14),
+                            ],
+                          ),
+                          Text(
+                              item['business_type'] ?? "Entertainment",
+                              style: const TextStyle(fontSize: 10, color: Colors.cyanAccent)
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ],
     );
+  }
+
+  Widget _buildInfoChip(IconData icon, String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusText(String text) {
+    return Center(child: Text(text, style: const TextStyle(color: Colors.white38)));
   }
 }

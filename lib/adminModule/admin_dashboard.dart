@@ -1,11 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:recommended_restaurant_entertainment/adminModule/admin_stats.dart';
 import 'admin_approval_list.dart';
 import 'admin_feedback_list.dart';
-import 'admin_report_list.dart';
+import 'admin_report_user.dart';
+import 'admin_report_business.dart';
 
 class AdminDashboard extends StatefulWidget {
   final Map<String, dynamic> adminData;
@@ -17,7 +19,6 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
-
   late final List<Widget> _adminPages;
 
   @override
@@ -27,107 +28,116 @@ class _AdminDashboardState extends State<AdminDashboard> {
       AdminApprovalList(adminData: widget.adminData),
       const AdminStatsPage(),
       const AdminFeedbackListPage(),
-      const AdminReportListPage(), // The fourth page for Business Reports
+      const AdminReportUserListPage(),
+      const AdminReportBusinessListPage(),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
-    // Check if the app is being viewed on a Desktop/Large screen
     bool isDesktop = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
-      body: Row(
+      backgroundColor: const Color(0xFF0F0C29),
+      extendBody: true, // Allows background to flow under bars
+      body: Stack(
         children: [
-          // SIDEBAR: Only visible on Desktop
-          if (isDesktop)
-            NavigationRail(
-              selectedIndex: _selectedIndex,
-              extended: MediaQuery.of(context).size.width > 1000,
-              onDestinationSelected: (int index) =>
-                  setState(() => _selectedIndex = index),
-              leading: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Icon(
-                  LucideIcons.shieldCheck,
-                  color: Colors.blueAccent,
-                  size: 40,
-                ),
+          // 1. GLOBAL BACKGROUND GRADIENT
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
               ),
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(LucideIcons.checkCircle),
-                  selectedIcon: Icon(LucideIcons.checkCircle, color: Colors.blueAccent),
-                  label: Text('Approvals'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(LucideIcons.barChart2),
-                  selectedIcon: Icon(LucideIcons.barChart2, color: Colors.blueAccent),
-                  label: Text('Stats'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(LucideIcons.messageSquare),
-                  selectedIcon: Icon(LucideIcons.messageSquare, color: Colors.blueAccent),
-                  label: Text('Feedback'),
-                ),
-                // FIXED: Added the Reports destination for Desktop view
-                NavigationRailDestination(
-                  icon: Icon(LucideIcons.alertTriangle),
-                  selectedIcon: Icon(LucideIcons.alertTriangle, color: Colors.blueAccent),
-                  label: Text('Reports'),
-                ),
-              ],
-              trailing: Expanded(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 20),
-                    child: IconButton(
-                      icon: const Icon(
-                        LucideIcons.logOut,
-                        color: Colors.redAccent,
+            ),
+          ),
+
+          // 2. MAIN LAYOUT
+          Row(
+            children: [
+              // SIDEBAR: Optimized for Desktop
+              if (isDesktop)
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.03),
+                    border: Border(right: BorderSide(color: Colors.white.withOpacity(0.1))),
+                  ),
+                  child: NavigationRail(
+                    backgroundColor: Colors.transparent,
+                    selectedIndex: _selectedIndex,
+                    extended: MediaQuery.of(context).size.width > 1000,
+                    unselectedIconTheme: IconThemeData(color: Colors.white.withOpacity(0.4)),
+                    selectedIconTheme: const IconThemeData(color: Colors.cyanAccent),
+                    unselectedLabelTextStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
+                    selectedLabelTextStyle: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold),
+                    onDestinationSelected: (int index) => setState(() => _selectedIndex = index),
+                    leading: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 30),
+                      child: Icon(LucideIcons.shieldCheck, color: Colors.cyanAccent, size: 45),
+                    ),
+                    destinations: const [
+                      NavigationRailDestination(icon: Icon(LucideIcons.checkCircle), label: Text('Approvals')),
+                      NavigationRailDestination(icon: Icon(LucideIcons.barChart2), label: Text('Stats')),
+                      NavigationRailDestination(icon: Icon(LucideIcons.messageSquare), label: Text('Feedback')),
+                      NavigationRailDestination(icon: Icon(LucideIcons.alertTriangle), label: Text('Reports User')),
+                      NavigationRailDestination(icon: Icon(LucideIcons.megaphone), label: Text('Report Business')),
+                    ],
+                    trailing: Expanded(
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 25),
+                          child: IconButton(
+                            icon: const Icon(LucideIcons.logOut, color: Colors.redAccent, size: 28),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ),
                       ),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: "Logout Admin",
                     ),
                   ),
                 ),
+
+              // PAGE CONTENT
+              Expanded(
+                child: ClipRRect(
+                  child: _adminPages[_selectedIndex],
+                ),
               ),
-            ),
-
-          if (isDesktop) const VerticalDivider(thickness: 1, width: 1),
-
-          // Main Content Area
-          Expanded(child: _adminPages[_selectedIndex]),
+            ],
+          ),
         ],
       ),
-      // BOTTOM BAR: Only visible on Mobile
+
+      // BOTTOM NAVIGATION: Optimized for Mobile
       bottomNavigationBar: isDesktop
           ? null
-          : BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        type: BottomNavigationBarType.fixed, // [cite: 154]
-        onTap: (index) => setState(() => _selectedIndex = index),
-        selectedItemColor: Colors.blueAccent,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(LucideIcons.checkCircle),
-            label: 'Approvals',
+          : Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(25),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+            child: BottomNavigationBar(
+              currentIndex: _selectedIndex,
+              type: BottomNavigationBarType.fixed,
+              backgroundColor: Colors.white.withOpacity(0.05),
+              elevation: 0,
+              onTap: (index) => setState(() => _selectedIndex = index),
+              selectedItemColor: Colors.cyanAccent,
+              unselectedItemColor: Colors.white.withOpacity(0.4),
+              items: const [
+                BottomNavigationBarItem(icon: Icon(LucideIcons.checkCircle), label: 'Approvals'),
+                BottomNavigationBarItem(icon: Icon(LucideIcons.barChart2), label: 'Stats'),
+                BottomNavigationBarItem(icon: Icon(LucideIcons.messageSquare), label: 'Feedback'),
+                BottomNavigationBarItem(icon: Icon(LucideIcons.alertTriangle), label: 'Reports'),
+                BottomNavigationBarItem(icon: Icon(LucideIcons.megaphone), label: 'Business'),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(LucideIcons.barChart2),
-            label: 'Stats',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(LucideIcons.messageSquare),
-            label: 'Feedback',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(LucideIcons.alertTriangle),
-            label: 'Reports',
-          ),
-        ],
+        ),
       ),
     );
   }

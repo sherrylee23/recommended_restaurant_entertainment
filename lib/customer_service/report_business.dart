@@ -1,3 +1,4 @@
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -90,7 +91,6 @@ class _ReportBusinessPageState extends State<ReportBusinessPage> {
         imageUrl = _supabase.storage.from('business_reports').getPublicUrl(path);
       }
 
-      // 2. 插入举报记录到数据库 [cite: 37]
       await _supabase.from('business_reports').insert({
         'profile_id': widget.userData['id'],
         'user_email': _emailController.text.trim(),
@@ -115,132 +115,132 @@ class _ReportBusinessPageState extends State<ReportBusinessPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-          title: const Text("Report Business", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
-              onPressed: () => Navigator.pop(context),
-    ),
-    ),
-    body: Container(
-    width: double.infinity,
-    height: double.infinity,
-    decoration: BoxDecoration(
-    gradient: LinearGradient(
-    colors: [Colors.blue.shade100, Colors.purple.shade50],
-    ),
-    ),
-    child: SafeArea(
-    child: SingleChildScrollView(
-    padding: const EdgeInsets.all(16),
-    child: Column(
-    children: [
-    // 动态加载的商家选择卡片
-    _buildFormCard(
-    "Target Business",
-    _isLoadingBusinesses
-    ? const LinearProgressIndicator() // 加载时显示进度条
-        : DropdownButtonHideUnderline(
-    child: DropdownButton<String>(
-    isExpanded: true,
-    hint: const Text("Select a business from system"),
-    value: _selectedBusiness,
-    items: _businessList.map((String value) {
-    return DropdownMenuItem<String>(
-    value: value,
-    child: Text(value, style: const TextStyle(fontSize: 16)),
-    );
-    }).toList(),
-    onChanged: (newValue) => setState(() => _selectedBusiness = newValue),
-    ),
-    ),
-    ),
+        title: const Text("Report a Business", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade100, Colors.purple.shade50],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // 动态加载的商家选择卡片
+                _buildFormCard(
+                  "Target Business",
+                  _isLoadingBusinesses
+                      ? const LinearProgressIndicator() // 加载时显示进度条
+                      : DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      hint: const Text("Select a business from system"),
+                      value: _selectedBusiness,
+                      items: _businessList.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value, style: const TextStyle(fontSize: 16)),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) => setState(() => _selectedBusiness = newValue),
+                    ),
+                  ),
+                ),
 
-    _buildFormCard("Issue Description", TextField(
-    controller: _descriptionController,
-    maxLines: 5,
-    decoration: const InputDecoration(hintText: "Enter details here...", border: InputBorder.none),
-    )),
+                _buildFormCard("Issue Description", TextField(
+                  controller: _descriptionController,
+                  maxLines: 5,
+                  decoration: const InputDecoration(hintText: "Enter details here...", border: InputBorder.none),
+                )),
 
-    _buildFormCard("Evidence Photo", GestureDetector(
-    onTap: _pickImage,
-    child: Container(
-    width: double.infinity,
-    height: 150,
-    decoration: BoxDecoration(
-    color: Colors.white.withOpacity(0.5),
-    borderRadius: BorderRadius.circular(10),
-    border: Border.all(color: Colors.grey.shade300),
-    ),
-    child: _imageFile != null
-    ? ClipRRect(
-    borderRadius: BorderRadius.circular(10),
-    child: Image.file(_imageFile!, fit: BoxFit.cover),
-    )
-        : Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: const [
-    Icon(Icons.add_a_photo_outlined, size: 40, color: Colors.grey),
-    SizedBox(height: 8),
-    Text("Click to upload photo", style: TextStyle(color: Colors.grey)),
-    ],
-    ),
-    ),
-    )),
+                _buildFormCard("Evidence Photo", GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    width: double.infinity,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: _imageFile != null
+                        ? ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(_imageFile!, fit: BoxFit.cover),
+                    )
+                        : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.add_a_photo_outlined, size: 40, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text("Click to upload photo", style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                )),
 
-    _buildFormCard("Contact Email", TextField(
-    controller: _emailController,
-    decoration: const InputDecoration(hintText: "abc@gmail.com", border: InputBorder.none),
-    )),
+                _buildFormCard("Contact Email", TextField(
+                  controller: _emailController,
+                  decoration: const InputDecoration(hintText: "abc@gmail.com", border: InputBorder.none),
+                )),
 
-    const SizedBox(height: 30),
-    _buildSubmitButton(),
-    ],
-    ),
-    ),
-    ),
-    ),
+                const SizedBox(height: 30),
+                _buildSubmitButton(),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildFormCard(String label, Widget child) {
     return Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-    color: Colors.white.withOpacity(0.85),
-    borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
-    const SizedBox(height: 10),
-    child,
-    ],
-    ),
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black54)),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
     );
   }
 
   Widget _buildSubmitButton() {
     return InkWell(
-        onTap: _isSubmitting ? null : _submitReport,
-        child: Container(
+      onTap: _isSubmitting ? null : _submitReport,
+      child: Container(
         height: 55,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-    gradient: const LinearGradient(
-    colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent],
-    ),
-    borderRadius: BorderRadius.circular(15),
-    boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
-    ),
-    child: _isSubmitting
-    ? const CircularProgressIndicator(color: Colors.white)
-        : const Text("Submit Report", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-    ),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.purple.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
+        ),
+        child: _isSubmitting
+            ? const CircularProgressIndicator(color: Colors.white)
+            : const Text("Submit Report", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+      ),
     );
   }
 

@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/login_page.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lucide_icons/lucide_icons.dart'; // Ensure lucide_icons is imported
 import 'dart:io';
 import 'business_edit_profile.dart';
 
@@ -14,7 +16,6 @@ class BusinessProfilePage extends StatefulWidget {
 }
 
 class _BusinessProfilePageState extends State<BusinessProfilePage> {
-  // Fix: Make nullable to avoid LateInitializationError
   Map<String, dynamic>? _currentBusinessData;
   List<Map<String, dynamic>> _posts = [];
   final TextEditingController _postController = TextEditingController();
@@ -26,12 +27,12 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   @override
   void initState() {
     super.initState();
-    // Fix: Initialize immediately with passed data so UI has content to show
     _currentBusinessData = widget.businessData;
     _fetchProfile();
     _fetchPosts();
   }
 
+  // --- LOGIC PRESERVED ---
   Future<void> _fetchProfile() async {
     try {
       final data = await Supabase.instance.client
@@ -39,12 +40,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
           .select()
           .eq('id', widget.businessData['id'])
           .single();
-
-      if (mounted) {
-        setState(() {
-          _currentBusinessData = data;
-        });
-      }
+      if (mounted) setState(() => _currentBusinessData = data);
     } catch (e) {
       debugPrint("Error fetching profile: $e");
     }
@@ -57,7 +53,6 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
           .select()
           .eq('business_id', widget.businessData['id'])
           .order('created_at', ascending: false);
-
       if (mounted) {
         setState(() {
           _posts = List<Map<String, dynamic>>.from(data);
@@ -72,28 +67,30 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
   void _showSSMDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      builder: (BuildContext context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF1A1A35),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.greenAccent, width: 0.5)),
           title: const Row(
             children: [
-              Icon(Icons.verified, color: Colors.green),
+              Icon(Icons.verified, color: Colors.greenAccent),
               SizedBox(width: 10),
-              Text("Verified Business", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Verified", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ],
           ),
           content: const Text(
             "This business has been successfully verified via SSM (Suruhanjaya Syarikat Malaysia).",
-            style: TextStyle(fontSize: 15, height: 1.5),
+            style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Got it", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+              child: const Text("Got it", style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -112,26 +109,31 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 20, right: 20, top: 20,
-            ),
-            child: Column(
+      backgroundColor: Colors.transparent,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A35).withOpacity(0.9),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 20, right: 20, top: 20,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) => Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-                    const Text("New Post", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel", style: TextStyle(color: Colors.white54))),
+                    const Text("Post Moment", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17)),
                     _isUploading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                        : ElevatedButton(
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.cyanAccent))
+                        : TextButton(
                       onPressed: () async {
                         if (_postController.text.isNotEmpty || _selectedImages.isNotEmpty) {
                           setSheetState(() => _isUploading = true);
@@ -158,15 +160,15 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                           }
                         }
                       },
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF07C160)),
-                      child: const Text("Post", style: TextStyle(color: Colors.white)),
+                      child: const Text("Post", style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
                 TextField(
                   controller: _postController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(hintText: "What's new?", border: InputBorder.none),
+                  maxLines: 4,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(hintText: "What's new with your business?", hintStyle: TextStyle(color: Colors.white24), border: InputBorder.none),
                 ),
                 if (_selectedImages.isNotEmpty)
                   SizedBox(
@@ -176,242 +178,152 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
                       itemCount: _selectedImages.length,
                       itemBuilder: (context, i) => Padding(
                         padding: const EdgeInsets.only(right: 8),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(_selectedImages[i], width: 100, height: 100, fit: BoxFit.cover),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.file(_selectedImages[i], width: 100, height: 100, fit: BoxFit.cover),
+                            ),
+                            Positioned(right: 0, child: GestureDetector(onTap: () => setSheetState(() => _selectedImages.removeAt(i)), child: const CircleAvatar(radius: 10, backgroundColor: Colors.red, child: Icon(Icons.close, size: 12, color: Colors.white)))),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                IconButton(icon: const Icon(Icons.add_a_photo, color: Colors.grey), onPressed: () => _pickImages(setSheetState)),
-                const SizedBox(height: 20),
+                const SizedBox(height: 15),
+                IconButton(icon: const Icon(LucideIcons.image, color: Colors.cyanAccent, size: 30), onPressed: () => _pickImages(setSheetState)),
+                const SizedBox(height: 30),
               ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Safety check: Show loader if data is somehow still null
-    if (_currentBusinessData == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    if (_currentBusinessData == null) return const Scaffold(backgroundColor: Color(0xFF0F0C29), body: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)));
 
     final String businessName = _currentBusinessData!['business_name']?.toString() ?? "Business";
     final String businessId = _currentBusinessData!['id']?.toString() ?? "N/A";
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0F0C29),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(businessName, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text(businessName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           PopupMenuButton<String>(
-            icon: const Icon(Icons.menu, color: Colors.black87),
+            icon: const Icon(LucideIcons.moreVertical, color: Colors.white),
+            color: const Color(0xFF1A1A35),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.white10)),
             onSelected: (value) => value == 'logout' ? _handleLogout() : null,
-            itemBuilder: (context) => [const PopupMenuItem(value: 'logout', child: Text("Logout"))],
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'logout', child: Row(children: [Icon(Icons.logout, color: Colors.redAccent, size: 18), SizedBox(width: 10), Text("Logout", style: TextStyle(color: Colors.redAccent))])),
+            ],
           )
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await _fetchProfile();
-          await _fetchPosts();
-        },
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildGradientHeader(businessName, businessId),
-              _buildMomentsSection(),
-            ],
+      body: Container(
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)]),
+        ),
+        child: RefreshIndicator(
+          onRefresh: () async { await _fetchProfile(); await _fetchPosts(); },
+          color: Colors.cyanAccent,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildModernHeader(businessName, businessId),
+                _buildMomentsSection(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildGradientHeader(String name, String id) {
+  Widget _buildModernHeader(String name, String id) {
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [Colors.blue.shade100, Colors.purple.shade50],
-        ),
+        color: Colors.white.withOpacity(0.03),
+        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1))),
       ),
       child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
-            _buildBusinessHeader(name, id),
+            _buildBusinessAvatar(name, id),
+            const SizedBox(height: 20),
             Padding(
-              padding: const EdgeInsets.only(left: 30, top: 15, bottom: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildInfoSection("Address:", _currentBusinessData!['address'] ?? "N/A"),
-                  _buildInfoSection("Hours:", _currentBusinessData!['hours'] ?? "N/A"),
-                  _buildInfoSection("Phone:", _currentBusinessData!['phone'] ?? "N/A"),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              child: Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.1))),
+                child: Column(
+                  children: [
+                    _buildInfoRow(LucideIcons.mapPin, _currentBusinessData!['address'] ?? "No address"),
+                    const SizedBox(height: 10),
+                    _buildInfoRow(LucideIcons.clock, _currentBusinessData!['hours'] ?? "No hours set"),
+                    const SizedBox(height: 10),
+                    _buildInfoRow(LucideIcons.phone, _currentBusinessData!['phone'] ?? "No contact"),
+                  ],
+                ),
               ),
             ),
+            const SizedBox(height: 20),
             _buildStatsAndEditRow(),
-            const SizedBox(height: 25),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMomentsSection() {
-    return Container(
-      width: double.infinity,
-      color: Colors.white,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildBusinessAvatar(String name, String id) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 25),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 12, 15, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(shape: BoxShape.circle, gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.purpleAccent]), boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15)]),
+            child: const CircleAvatar(radius: 40, backgroundColor: Color(0xFF1A1A35), child: Icon(LucideIcons.store, size: 40, color: Colors.white70)),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Moments", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                GestureDetector(
-                  onTap: _showCreatePostSheet,
-                  child: _buildAddButtonIcon(),
-                ),
+                Row(children: [
+                  Flexible(child: Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white, overflow: TextOverflow.ellipsis))),
+                  const SizedBox(width: 8),
+                  GestureDetector(onTap: () => _showSSMDialog(context), child: const Icon(Icons.verified, size: 18, color: Colors.greenAccent)),
+                ]),
+                Text("ID: $id", style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
               ],
             ),
           ),
-          const Divider(height: 1, thickness: 1),
-          if (_isLoadingPosts)
-            const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
-          else if (_posts.isEmpty)
-            const Center(child: Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Text("No posts yet")))
-          else
-            _buildPostList(),
         ],
       ),
     );
   }
 
-  Widget _buildPostList() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: _posts.length,
-      itemBuilder: (context, index) {
-        final post = _posts[index];
-        final List<dynamic> imageUrls = post['image_urls'] ?? [];
-
-        return Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const CircleAvatar(radius: 22, child: Icon(Icons.store)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(_currentBusinessData!['business_name'] ?? "Business",
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF576B95))),
-                    if (post['text'] != null && post['text'].toString().isNotEmpty)
-                      Padding(padding: const EdgeInsets.only(top: 4), child: Text(post['text'])),
-                    if (imageUrls.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: imageUrls.length == 1
-                            ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(imageUrls[0], fit: BoxFit.cover))
-                            : SizedBox(
-                          height: 120,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: imageUrls.length,
-                            itemBuilder: (context, i) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(imageUrls[i], width: 120, height: 120, fit: BoxFit.cover),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    const Text("Just now", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAddButtonIcon() {
-    return Container(
-      width: 35, height: 35,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(colors: [Color(0xFF80D8FF), Color(0xFFEA80FC)]),
-      ),
-      child: const Icon(Icons.add, color: Colors.white, size: 24),
-    );
-  }
-
-  Widget _buildBusinessHeader(String name, String id) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          const CircleAvatar(radius: 45, backgroundColor: Colors.white, child: Icon(Icons.store, size: 50, color: Colors.brown)),
-          const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 5),
-                  GestureDetector(
-                    onTap: () => _showSSMDialog(context),
-                    child: const Icon(Icons.verified, size: 18, color: Colors.green),
-                  ),
-                ],
-              ),
-              Text("ID:$id", style: const TextStyle(color: Colors.black54, fontSize: 14)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoSection(String title, dynamic content) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
-          Text(content?.toString() ?? "N/A", style: const TextStyle(fontSize: 13)),
-        ],
-      ),
+  Widget _buildInfoRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: Colors.cyanAccent),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+      ],
     );
   }
 
@@ -421,37 +333,102 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(children: [
-            Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_posts.length.toString(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const Text("Posts", style: TextStyle(fontSize: 12))
-                ]),
-            const SizedBox(width: 30),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_posts.length.toString(), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text("Moments", style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.5))),
           ]),
           ElevatedButton(
             onPressed: () async {
-              // Wait for edit to finish
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => BusinessEditProfilePage(businessData: _currentBusinessData!),
-                ),
-              );
-              // Trigger refresh when back
+              await Navigator.push(context, MaterialPageRoute(builder: (context) => BusinessEditProfilePage(businessData: _currentBusinessData!)));
               _fetchProfile();
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white.withOpacity(0.9),
-                foregroundColor: Colors.black87,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    side: BorderSide(color: Colors.grey.shade300))),
-            child: const Text("Edit Profile", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              backgroundColor: Colors.white.withOpacity(0.05),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.white.withOpacity(0.2))),
+            ),
+            child: const Text("Edit Business", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMomentsSection() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(25, 25, 25, 15),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("TIMELINE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 12, color: Colors.white54)),
+              GestureDetector(
+                onTap: _showCreatePostSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent])),
+                  child: const Row(children: [Icon(Icons.add, size: 16, color: Color(0xFF0F0C29)), SizedBox(width: 4), Text("NEW", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, fontSize: 11))]),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_isLoadingPosts)
+          const Padding(padding: EdgeInsets.all(50), child: CircularProgressIndicator(color: Colors.cyanAccent))
+        else if (_posts.isEmpty)
+          Padding(padding: const EdgeInsets.all(80), child: Text("No moments shared yet.", style: TextStyle(color: Colors.white.withOpacity(0.2))))
+        else
+          _buildPostList(),
+        const SizedBox(height: 100),
+      ],
+    );
+  }
+
+  Widget _buildPostList() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: _posts.length,
+      itemBuilder: (context, index) {
+        final post = _posts[index];
+        final List<dynamic> imageUrls = post['image_urls'] ?? [];
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.05))),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (post['text'] != null && post['text'].toString().isNotEmpty)
+                Padding(padding: const EdgeInsets.only(bottom: 12), child: Text(post['text'], style: const TextStyle(color: Colors.white, fontSize: 15))),
+              if (imageUrls.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: imageUrls.length == 1
+                      ? Image.network(imageUrls[0], fit: BoxFit.cover, width: double.infinity)
+                      : SizedBox(
+                    height: 180,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: imageUrls.length,
+                      itemBuilder: (context, i) => Padding(
+                        padding: const EdgeInsets.only(right: 10),
+                        child: ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(imageUrls[i], width: 250, fit: BoxFit.cover)),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              const Text("Shared recently", style: TextStyle(color: Colors.white24, fontSize: 11)),
+            ],
+          ),
+        );
+      },
     );
   }
 

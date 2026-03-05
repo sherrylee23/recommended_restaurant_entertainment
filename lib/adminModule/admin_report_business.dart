@@ -13,7 +13,6 @@ class AdminReportBusinessListPage extends StatefulWidget {
 class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPage> {
   final _supabase = Supabase.instance.client;
 
-  // --- DESIGNED DIALOG ---
   void _showFeedbackDialog(Map<String, dynamic> report) {
     final controller = TextEditingController();
     showDialog(
@@ -22,7 +21,10 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
         filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
         child: AlertDialog(
           backgroundColor: const Color(0xFF1A1A35),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.white.withOpacity(0.1))),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: Colors.white.withOpacity(0.1))
+          ),
           title: const Text("Reply to Complaint", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -57,7 +59,11 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
                   setState(() {});
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: const Color(0xFF0F0C29), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyanAccent,
+                  foregroundColor: const Color(0xFF0F0C29),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+              ),
               child: const Text("Send Feedback", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
@@ -69,7 +75,7 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent, // Background handled by Dashboard Stack
+      backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text("Business Complaints", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
@@ -92,6 +98,9 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
               itemBuilder: (context, index) {
                 final report = reports[index];
                 final bool isResolved = report['status'] == 'resolved';
+
+                // UPDATED: Get list of images from 'media_urls'
+                final List<dynamic> images = report['media_urls'] ?? [];
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -130,26 +139,38 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
                             const Divider(color: Colors.white10, height: 24),
                             Text(report['description'] ?? "No description provided.", style: const TextStyle(color: Colors.white70, height: 1.4)),
 
-                            // EVIDENCE IMAGE SECTION
-                            if (report['media_url'] != null && report['media_url'].toString().isNotEmpty) ...[
+                            // UPDATED: EVIDENCE IMAGES SECTION (Multiple images)
+                            if (images.isNotEmpty) ...[
                               const SizedBox(height: 16),
-                              Text("Evidence:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.4))),
-                              const SizedBox(height: 8),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  constraints: const BoxConstraints(maxHeight: 300),
-                                  width: double.infinity,
-                                  color: Colors.black26,
-                                  child: Image.network(
-                                    report['media_url'],
-                                    fit: BoxFit.contain,
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return const Center(child: Padding(padding: EdgeInsets.all(20.0), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.cyanAccent)));
-                                    },
-                                    errorBuilder: (context, error, stackTrace) => const Padding(padding: EdgeInsets.all(20.0), child: Text("Could not load evidence", style: TextStyle(color: Colors.redAccent, fontSize: 11))),
-                                  ),
+                              Text("Evidence (${images.length}):", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.4))),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 120, // Height for the horizontal list
+                                child: ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: images.length,
+                                  itemBuilder: (context, imgIndex) {
+                                    return GestureDetector(
+                                      onTap: () => _showFullScreenImage(images[imgIndex]),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(right: 12),
+                                        width: 120,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(12),
+                                          color: Colors.black26,
+                                          border: Border.all(color: Colors.white.withOpacity(0.1)),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: Image.network(
+                                            images[imgIndex],
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image, color: Colors.white24)),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
                             ],
@@ -194,6 +215,22 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
             );
           },
         ),
+      ),
+    );
+  }
+
+  // Helper to view image full screen
+  void _showFullScreenImage(String url) {
+    showDialog(
+      context: context,
+      builder: (context) => Stack(
+        children: [
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(color: Colors.black.withOpacity(0.9), child: Center(child: InteractiveViewer(child: Image.network(url)))),
+          ),
+          Positioned(top: 40, right: 20, child: IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 30), onPressed: () => Navigator.pop(context))),
+        ],
       ),
     );
   }

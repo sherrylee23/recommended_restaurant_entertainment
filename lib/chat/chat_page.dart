@@ -30,6 +30,19 @@ class _UserInboxPageState extends State<UserInboxPage> {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
+  Widget _buildAvatar(String? imageUrl, {double radius = 20, double iconSize = 20}) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.blueAccent.withOpacity(0.1),
+      backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
+          ? NetworkImage(imageUrl)
+          : null,
+      child: (imageUrl == null || imageUrl.isEmpty)
+          ? Icon(LucideIcons.store, color: Colors.blueAccent, size: iconSize)
+          : null,
+    );
+  }
+
   String _formatDateTime(String? dateStr) {
     if (dateStr == null) return "";
     final DateTime date = DateTime.parse(dateStr).toLocal();
@@ -71,36 +84,39 @@ class _UserInboxPageState extends State<UserInboxPage> {
             colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
           ),
         ),
-        child: RefreshIndicator(
-          onRefresh: _handleRefresh,
-          color: Colors.blueAccent,
-          child: _searchQuery.isEmpty
-              ? CustomScrollView(
-            key: _refreshKey,
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: _buildSearchBar()),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _buildSystemNotificationTile(),
-                    const SizedBox(height: 12),
-                    _buildCommentNotificationTile(),
-                  ]),
-                ),
+        // MOVE SEARCH BAR HERE so it stays constant regardless of search state
+        child: Column(
+          children: [
+            _buildSearchBar(), // The Search Bar is now ALWAYS here
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _handleRefresh,
+                color: Colors.blueAccent,
+                child: _searchQuery.isEmpty
+                    ? CustomScrollView(
+                  key: _refreshKey,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    // REMOVE _buildSearchBar() from here
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          _buildSystemNotificationTile(),
+                          const SizedBox(height: 12),
+                          _buildCommentNotificationTile(),
+                        ]),
+                      ),
+                    ),
+                    SliverToBoxAdapter(child: _buildRecentHeader()),
+                    _buildChatHistorySliver(),
+                    const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                  ],
+                )
+                    : _buildSearchResults(), // Display results here
               ),
-              SliverToBoxAdapter(child: _buildRecentHeader()),
-              _buildChatHistorySliver(),
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
-            ],
-          )
-              : Column(
-            children: [
-              _buildSearchBar(),
-              Expanded(child: _buildSearchResults()),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -163,11 +179,25 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
   Widget _buildBusinessTile(dynamic bId, List<Map<String, dynamic>> allMessages) {
     final userId = widget.userData['id'];
-    final conversation = allMessages.where((m) => (m['sender_id'] == userId && m['receiver_id'] == bId) || (m['sender_id'] == bId && m['receiver_id'] == userId)).toList();
+
+    // 1. Get the conversation messages
+    final conversation = allMessages.where((m) =>
+    (m['sender_id'] == userId && m['receiver_id'] == bId) ||
+        (m['sender_id'] == bId && m['receiver_id'] == userId)
+    ).toList();
+
     if (conversation.isEmpty) return const SizedBox.shrink();
 
     final lastMsg = conversation.first;
-    final bool hasUnread = lastMsg['receiver_id'] == userId && lastMsg['is_read'] == false;
+
+    // 2. Count ONLY messages sent FROM the business TO the user that are UNREAD
+    final int unreadCount = conversation.where((m) =>
+    m['sender_id'] == bId &&
+        m['receiver_id'] == userId &&
+        m['is_read'] == false
+    ).length;
+
+    final bool hasUnread = unreadCount > 0;
 
     return FutureBuilder<Map<String, dynamic>>(
       future: _supabase.from('business_profiles').select().eq('id', bId).single(),
@@ -180,25 +210,81 @@ class _UserInboxPageState extends State<UserInboxPage> {
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(hasUnread ? 0.08 : 0.03),
             borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: hasUnread ? Colors.blueAccent.withOpacity(0.3) : Colors.white.withOpacity(0.05)),
+            border: Border.all(
+                color: hasUnread ? Colors.blueAccent.withOpacity(0.3) : Colors.white.withOpacity(0.05)
+            ),
           ),
           child: ListTile(
-            // FIXED: Click profile icon to view Profile
-            leading: GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserViewBusinessPage(userData: widget.userData, businessData: business))),
-              child: CircleAvatar(
-                  backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                  child: const Icon(LucideIcons.store, color: Colors.blueAccent, size: 20)
-              ),
+            leading: Stack(
+              clipBehavior: Clip.none, // Allows the badge to sit slightly outside the avatar
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => UserViewBusinessPage(userData: widget.userData, businessData: business)
+                  )),
+                  child: _buildAvatar(business['profile_url']),
+                ),
+                if (hasUnread)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF16162E), width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.redAccent.withOpacity(0.4),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          )
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          unreadCount > 9 ? "9+" : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            title: Text(business['business_name'] ?? "Business", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-            subtitle: Text(lastMsg['content'] ?? "", maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: hasUnread ? Colors.white : Colors.white38)),
-            trailing: Text(_formatDateTime(lastMsg['created_at']), style: TextStyle(fontSize: 10, color: hasUnread ? Colors.blueAccent : Colors.white24)),
-            // FIXED: Click tile body to go to Chat Details
+            title: Text(
+                business['business_name'] ?? "Business",
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
+            ),
+            subtitle: Text(
+                lastMsg['content'] ?? "",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: hasUnread ? Colors.white : Colors.white38,
+                  fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                )
+            ),
+            trailing: Text(
+                _formatDateTime(lastMsg['created_at']),
+                style: TextStyle(fontSize: 10, color: hasUnread ? Colors.blueAccent : Colors.white24)
+            ),
             onTap: () async {
-              await _supabase.from('messages').update({'is_read': true}).eq('receiver_id', userId).eq('sender_id', bId);
+              // Mark ALL messages from this business as read
+              await _supabase.from('messages')
+                  .update({'is_read': true})
+                  .eq('receiver_id', userId)
+                  .eq('sender_id', bId);
+
               if (mounted) {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)));
+                Navigator.push(context, MaterialPageRoute(
+                    builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)
+                ));
               }
             },
           ),
@@ -306,9 +392,53 @@ class _UserInboxPageState extends State<UserInboxPage> {
   }
 
   Widget _buildBookingAction() {
-    return IconButton(
-      icon: const Icon(LucideIcons.calendarClock, color: Colors.white),
-      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UserBookingHistoryPage(userData: widget.userData))),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _supabase
+          .from('bookings')
+          .stream(primaryKey: ['id'])
+          .eq('user_id', widget.userData['id'].toString()),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return _bookingIcon(false);
+
+        final now = DateTime.now();
+        final today = DateFormat('yyyy-MM-dd').format(now);
+
+        bool showDot = snapshot.data!.any((b) {
+          // 1. Reminder: Active booking happening TODAY
+          bool isTodayActive = b['booking_date'] == today && b['status'] == 'confirmed';
+
+          // 2. Notification: Business changed status and user hasn't opened history yet
+          bool hasNewUpdate = b['user_viewed'] == false;
+
+          return isTodayActive || hasNewUpdate;
+        });
+
+        return _bookingIcon(showDot);
+      },
+    );
+  }
+
+// Helper to keep UI clean
+  Widget _bookingIcon(bool showDot) {
+    return Stack(
+      children: [
+        IconButton(
+          icon: const Icon(LucideIcons.calendarClock, color: Colors.white),
+          onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => UserBookingHistoryPage(userData: widget.userData))
+          ),
+        ),
+        if (showDot)
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              width: 8, height: 8,
+              decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+            ),
+          ),
+      ],
     );
   }
 
@@ -322,15 +452,22 @@ class _UserInboxPageState extends State<UserInboxPage> {
           itemCount: snapshot.data!.length,
           itemBuilder: (context, index) {
             final business = snapshot.data![index];
-            return ListTile(
-              // FIXED: Clicking profile icon here also goes to Profile
-              leading: GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserViewBusinessPage(userData: widget.userData, businessData: business))),
-                  child: const Icon(LucideIcons.store, color: Colors.blueAccent)
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(12),
               ),
-              title: Text(business['business_name'] ?? "", style: const TextStyle(color: Colors.white)),
-              // FIXED: Clicking tile goes to Chat
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business))),
+              child: ListTile(
+                leading: GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserViewBusinessPage(userData: widget.userData, businessData: business))),
+                  // NEW: Display image in search results
+                  child: _buildAvatar(business['profile_url'], radius: 18, iconSize: 16),
+                ),
+                title: Text(business['business_name'] ?? "", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                trailing: const Icon(LucideIcons.chevronRight, color: Colors.white24, size: 18),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business))),
+              ),
             );
           },
         );

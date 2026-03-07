@@ -1,4 +1,4 @@
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter/foundation.dart';
 
@@ -15,7 +15,7 @@ class NomiChatLogic {
     _model = GenerativeModel(
       // FIXED: Always use 'gemini-1.5-flash' for stability in Flutter
       model: 'gemini-3-flash-preview',
-      apiKey: 'AIzaSyCrh9Q81SiWKclr69rt19z_Zwixg5ZsNIo',
+      apiKey: 'AIzaSyB0pr_xVmFdiHQB1ADxpKKaqQkmpzNaJDI',
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
@@ -28,6 +28,8 @@ class NomiChatLogic {
               "2. REPORT FORM: ONLY append '[TRIGGER_REPORT_FORM]' if the user specifically mentions "
               "reporting a restaurant, a scam, food poisoning, or explicitly asks for a report form. "
               "DO NOT trigger it for general questions about account limits or features."
+              "3. HUMAN AGENT: If the user is frustrated, has a complex technical issue, "
+              "or asks 'talk to a person', append '[TRIGGER_AGENT]' to your response."
       ),
     );
     _chatSession = _model.startChat();
@@ -53,6 +55,25 @@ class NomiChatLogic {
         "text": "Connectivity error: $e",
         "showAction": false
       };
+    }
+  }
+
+  // Inside nomi_chat_logic.dart
+
+  Future<void> switchToHumanAgent() async {
+    final userId = userData['id'];
+    try {
+      // We update the support_tickets or chat_sessions table
+      // to alert the admin that a user is waiting.
+      await Supabase.instance.client
+          .from('support_chats')
+          .upsert({
+        'user_id': userId,
+        'status': 'waiting_for_agent',
+        'last_message_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint("Error switching to agent: $e");
     }
   }
 }

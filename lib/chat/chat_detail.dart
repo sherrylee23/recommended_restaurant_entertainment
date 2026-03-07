@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:recommended_restaurant_entertainment/businessModule/booking_form.dart';
+import 'view_business_profile.dart';
 
 class UserChatDetailPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -53,27 +54,89 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFF16162E), // Solid dark color for stability
+        backgroundColor: const Color(0xFF16162E),
         leading: IconButton(
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.businessData['business_name'] ?? "Chat",
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          ],
+        title: InkWell(
+          // Use InkWell for a subtle ripple effect when clicking
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UserViewBusinessPage(
+                  userData: widget.userData,
+                  businessData: widget.businessData,
+                ),
+              ),
+            );
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.blueAccent.withOpacity(0.1),
+                // 1. Ensure the key matches your database (profile_image_url)
+                backgroundImage: (widget.businessData['profile_url'] != null &&
+                    widget.businessData['profile_url'].toString().isNotEmpty)
+                    ? NetworkImage(widget.businessData['profile_url'])
+                    : null,
+                // 2. Set child to null if the image exists so the icon doesn't sit on top
+                child: (widget.businessData['profile_url'] == null ||
+                    widget.businessData['profile_url'].toString().isEmpty)
+                    ? const Icon(
+                  LucideIcons.store,
+                  color: Colors.blueAccent,
+                  size: 16,
+                )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.businessData['business_name'] ?? "Chat",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      // ADD THESE TWO LINES
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                    Text(
+                      "View Profile", // Added subtitle to hint it is clickable
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.blueAccent.withOpacity(0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             child: ElevatedButton.icon(
               onPressed: _navigateToBooking,
-              icon: const Icon(LucideIcons.calendarDays, size: 14, color: Colors.white),
-              label: const Text("BOOK", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              icon: const Icon(
+                LucideIcons.calendarDays,
+                size: 14,
+                color: Colors.white,
+              ),
+              label: const Text(
+                "BOOK",
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent.withOpacity(0.3),
                 foregroundColor: Colors.white,
@@ -109,10 +172,22 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
 
   Widget _buildMessageList(String userId, String businessId) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _supabase.from('messages').stream(primaryKey: ['id']).order('created_at', ascending: false),
+      stream: _supabase
+          .from('messages')
+          .stream(primaryKey: ['id'])
+          .order('created_at', ascending: false),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text("Error loading messages", style: TextStyle(color: Colors.white)));
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
+        if (snapshot.hasError)
+          return Center(
+            child: Text(
+              "Error loading messages",
+              style: TextStyle(color: Colors.white),
+            ),
+          );
+        if (!snapshot.hasData)
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.blueAccent),
+          );
 
         final messages = snapshot.data!.where((m) {
           final String mSenderId = m['sender_id'].toString();
@@ -130,24 +205,42 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
             final msg = messages[index];
             final bool isMe = msg['is_from_business'] == false;
 
-            final DateTime? createdAt = DateTime.tryParse(msg['created_at'] ?? "");
+            final DateTime? createdAt = DateTime.tryParse(
+              msg['created_at'] ?? "",
+            );
             final String timeString = createdAt != null
                 ? "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}"
                 : "";
 
             return Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: isMe
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
                     decoration: BoxDecoration(
                       gradient: isMe
-                          ? const LinearGradient(colors: [Colors.blueAccent, Color(0xFF6A11CB)])
-                          : LinearGradient(colors: [Colors.white.withOpacity(0.1), Colors.white.withOpacity(0.05)]),
+                          ? const LinearGradient(
+                              colors: [Colors.blueAccent, Color(0xFF6A11CB)],
+                            )
+                          : LinearGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.1),
+                                Colors.white.withOpacity(0.05),
+                              ],
+                            ),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(20),
                         topRight: const Radius.circular(20),
@@ -163,7 +256,13 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12, left: 4, right: 4),
-                  child: Text(timeString, style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3))),
+                  child: Text(
+                    timeString,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.white.withOpacity(0.3),
+                    ),
+                  ),
                 ),
               ],
             );
@@ -192,10 +291,15 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.05),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                    borderSide: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
+                    ),
                   ),
                 ),
               ),
@@ -221,9 +325,15 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                 padding: const EdgeInsets.all(10),
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent]),
+                  gradient: LinearGradient(
+                    colors: [Colors.blueAccent, Colors.purpleAccent],
+                  ),
                 ),
-                child: const Icon(LucideIcons.send, color: Colors.white, size: 18),
+                child: const Icon(
+                  LucideIcons.send,
+                  color: Colors.white,
+                  size: 18,
+                ),
               ),
             ),
           ],

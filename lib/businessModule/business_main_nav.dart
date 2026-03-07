@@ -54,44 +54,70 @@ class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
                   _buildNavItem(LucideIcons.user, 0),
 
                   // Booking History Tab
-                  _buildNavItem(LucideIcons.calendarCheck, 1),
 
                   // Inbox Tab with Real-time Logic Preserved
                   StreamBuilder<List<Map<String, dynamic>>>(
                     stream: _supabase
-                        .from('messages')
+                        .from('bookings')
                         .stream(primaryKey: ['id'])
-                        .eq('receiver_id', businessId),
+                        .eq('business_id', businessId.toString()),
+                    builder: (context, snapshot) {
+                      bool hasNewBooking = false;
+                      if (snapshot.hasData) {
+                        // Show dot if any booking is still 'pending'
+                        hasNewBooking = snapshot.data!.any((b) => b['status'] == 'pending');
+                      }
+
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          _buildNavItem(LucideIcons.calendarCheck, 1),
+                          if (hasNewBooking)
+                            Positioned(
+                              right: 12,
+                              top: 15,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: Colors.orangeAccent, // Using orange for bookings to distinguish from messages
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFF1A1A35), width: 1.5),
+                                  boxShadow: [BoxShadow(color: Colors.orangeAccent.withOpacity(0.5), blurRadius: 5)],
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  // 3. Inbox Tab (Keep your existing logic)
+                  StreamBuilder<List<Map<String, dynamic>>>(
+                    stream: _supabase.from('messages').stream(primaryKey: ['id']),
                     builder: (context, snapshot) {
                       bool hasUnread = false;
                       if (snapshot.hasData) {
-                        hasUnread = snapshot.data!.any((m) => m['is_read'] == false);
+                        hasUnread = snapshot.data!.any((m) =>
+                        m['receiver_id'].toString() == businessId.toString() &&
+                            m['is_read'] == false);
                       }
-
                       return Stack(
                         alignment: Alignment.center,
                         children: [
                           _buildNavItem(LucideIcons.messageSquare, 2),
                           if (hasUnread)
                             Positioned(
-                              right: 18,
-                              top: 22,
+                              right: 12,
+                              top: 15,
                               child: Container(
                                 width: 10,
                                 height: 10,
                                 decoration: BoxDecoration(
-                                    color: Colors.redAccent,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                        color: const Color(0xFF1A1A35),
-                                        width: 1.5
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.redAccent.withOpacity(0.5),
-                                        blurRadius: 5,
-                                      )
-                                    ]
+                                  color: Colors.redAccent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: const Color(0xFF1A1A35), width: 1.5),
+                                  boxShadow: [BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 5)],
                                 ),
                               ),
                             ),

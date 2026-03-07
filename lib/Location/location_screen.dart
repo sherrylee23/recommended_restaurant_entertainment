@@ -41,8 +41,8 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
         permission = await Geolocator.requestPermission();
       }
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 8),
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 5),
       );
       if (position.longitude < 0) {
         _currentLocation = const LatLng(3.1390, 101.6869);

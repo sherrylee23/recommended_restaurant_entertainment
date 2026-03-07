@@ -36,7 +36,9 @@ class _LoginPageState extends State<LoginPage> {
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
-          backgroundColor: const Color(0xFF1A1A35).withOpacity(0.9), // Deep midnight glass
+          backgroundColor: const Color(
+            0xFF1A1A35,
+          ).withOpacity(0.9), // Deep midnight glass
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
             side: BorderSide(color: Colors.cyanAccent.withOpacity(0.2)),
@@ -46,8 +48,11 @@ class _LoginPageState extends State<LoginPage> {
               Icon(LucideIcons.shieldCheck, color: Colors.cyanAccent),
               SizedBox(width: 10),
               Text(
-                  "Admin Portal",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                "Admin Portal",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -61,34 +66,42 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20),
               // Admin Email Field
               _buildTextField(
-                  controller: adminEmail,
-                  hint: "Admin Email",
-                  icon: LucideIcons.mail
+                controller: adminEmail,
+                hint: "Admin Email",
+                icon: LucideIcons.mail,
               ),
               const SizedBox(height: 15),
               // Admin Password Field
               _buildTextField(
-                  controller: adminPass,
-                  hint: "Password",
-                  icon: LucideIcons.lock,
-                  isPassword: true
+                controller: adminPass,
+                hint: "Password",
+                icon: LucideIcons.lock,
+                isPassword: true,
               ),
             ],
           ),
           actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text("Cancel", style: TextStyle(color: Colors.white.withOpacity(0.5)))
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Cancel",
+                style: TextStyle(color: Colors.white.withOpacity(0.5)),
+              ),
             ),
             const SizedBox(width: 10),
             // Glowing Action Button
             Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]),
+                gradient: const LinearGradient(
+                  colors: [Colors.cyanAccent, Colors.blueAccent],
+                ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 10)
+                  BoxShadow(
+                    color: Colors.cyanAccent.withOpacity(0.2),
+                    blurRadius: 10,
+                  ),
                 ],
               ),
               child: ElevatedButton(
@@ -103,22 +116,35 @@ class _LoginPageState extends State<LoginPage> {
                   if (adminData != null && mounted) {
                     Navigator.pop(context);
                     Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => AdminDashboard(adminData: adminData))
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => AdminDashboard(adminData: adminData),
+                      ),
                     );
                   } else {
                     // Quick error feedback inside dialog
                     ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Invalid Admin Credentials"), backgroundColor: Colors.redAccent)
+                      const SnackBar(
+                        content: Text("Invalid Admin Credentials"),
+                        backgroundColor: Colors.redAccent,
+                      ),
                     );
                   }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: const Text("ACCESS", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "ACCESS",
+                  style: TextStyle(
+                    color: Color(0xFF0F0C29),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
           ],
@@ -134,31 +160,61 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => errorText = "Please enter your credentials");
       return;
     }
-    setState(() { _isLoading = true; errorText = ""; });
+    setState(() {
+      _isLoading = true;
+      errorText = "";
+    });
     try {
+      // Inside your _login() function in login_page.dart
       if (isBusiness) {
         final bizData = await Supabase.instance.client
-            .from('business_profiles').select().eq('email', identifier).eq('password', password).maybeSingle();
+            .from('business_profiles')
+            .select()
+            .eq('email', identifier)
+            .eq('password', password)
+            .maybeSingle();
 
         if (bizData != null) {
           final String status = bizData['status'] ?? 'pending';
+          final String? reason =
+              bizData['reject_reason']; // Ensure this column exists in Supabase
 
-          // --- CHECK FOR INACTIVE STATUS ---
           if (status == 'inactive') {
             if (mounted) _showAccountDisabledDialog();
           } else if (status == 'approved') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => BusinessMainNavigation(businessData: bizData)));
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BusinessMainNavigation(businessData: bizData),
+              ),
+            );
           } else {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const PendingApprovalPage()));
+            // Pass the actual status ('rejected' or 'pending') and the reason
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    PendingApprovalPage(status: status, rejectReason: reason),
+              ),
+            );
           }
         } else {
           setState(() => errorText = "Invalid Business Credentials");
         }
       } else {
         final userData = await Supabase.instance.client
-            .from('profiles').select().eq('password', password).or('email.eq.$identifier,username.eq.$identifier').maybeSingle();
+            .from('profiles')
+            .select()
+            .eq('password', password)
+            .or('email.eq.$identifier,username.eq.$identifier')
+            .maybeSingle();
         if (userData != null && mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => MainNavigation(userData: userData)));
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MainNavigation(userData: userData),
+            ),
+          );
         } else {
           setState(() => errorText = "Invalid User Credentials");
         }
@@ -196,7 +252,13 @@ class _LoginPageState extends State<LoginPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("CLOSE", style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+              child: const Text(
+                "CLOSE",
+                style: TextStyle(
+                  color: Colors.cyanAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -211,10 +273,12 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       body: Container(
-        width: double.infinity, height: double.infinity,
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
               Color(0xFF0F0C29), // Dark Space
               Color(0xFF302B63), // Purple
@@ -227,26 +291,32 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               // FIXED: Background Glow using BoxShadow
               Positioned(
-                top: -30, left: -30,
+                top: -30,
+                left: -30,
                 child: Container(
-                    width: 150, height: 150,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.blueAccent.withOpacity(0.2),
-                              blurRadius: 100,
-                              spreadRadius: 50
-                          )
-                        ]
-                    )
+                  width: 150,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blueAccent.withOpacity(0.2),
+                        blurRadius: 100,
+                        spreadRadius: 50,
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
               Positioned(
-                top: 10, right: 10,
+                top: 10,
+                right: 10,
                 child: IconButton(
-                  icon: Icon(LucideIcons.shieldCheck, color: Colors.white.withOpacity(0.3)),
+                  icon: Icon(
+                    LucideIcons.shieldCheck,
+                    color: Colors.white.withOpacity(0.3),
+                  ),
                   onPressed: _showAdminLoginDialog,
                 ),
               ),
@@ -260,11 +330,21 @@ class _LoginPageState extends State<LoginPage> {
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: Colors.white.withOpacity(0.1), blurRadius: 30)],
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.white.withOpacity(0.1),
+                              blurRadius: 30,
+                            ),
+                          ],
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(30),
-                          child: Image.asset('assets/nomi_logo.jpeg', height: 110, width: 110, fit: BoxFit.cover),
+                          child: Image.asset(
+                            'assets/nomi_logo.jpeg',
+                            height: 110,
+                            width: 110,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 30),
@@ -281,37 +361,71 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: BoxDecoration(
                               color: glassColor,
                               borderRadius: BorderRadius.circular(30),
-                              border: Border.all(color: borderColor, width: 1.5),
+                              border: Border.all(
+                                color: borderColor,
+                                width: 1.5,
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                    isBusiness ? "Business Portal" : "Welcome Back",
-                                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)
+                                  isBusiness
+                                      ? "Business Portal"
+                                      : "Welcome Back",
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
                                 const SizedBox(height: 25),
                                 _buildTextField(
-                                    controller: emailController,
-                                    hint: isBusiness ? "Business Email" : "Username or Email",
-                                    icon: isBusiness ? LucideIcons.briefcase : LucideIcons.user
+                                  controller: emailController,
+                                  hint: isBusiness
+                                      ? "Business Email"
+                                      : "Username or Email",
+                                  icon: isBusiness
+                                      ? LucideIcons.briefcase
+                                      : LucideIcons.user,
                                 ),
                                 const SizedBox(height: 20),
                                 _buildTextField(
-                                    controller: passwordController,
-                                    hint: "Password",
-                                    icon: LucideIcons.lock,
-                                    isPassword: true
+                                  controller: passwordController,
+                                  hint: "Password",
+                                  icon: LucideIcons.lock,
+                                  isPassword: true,
                                 ),
                                 Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordPage())),
-                                        child: const Text("Forgot password?", style: TextStyle(color: Colors.white60, fontSize: 13))
-                                    )
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const ForgotPasswordPage(),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      "Forgot password?",
+                                      style: TextStyle(
+                                        color: Colors.white60,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                                 if (errorText.isNotEmpty)
-                                  Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(errorText, style: const TextStyle(color: Colors.redAccent, fontSize: 12))),
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Text(
+                                      errorText,
+                                      style: const TextStyle(
+                                        color: Colors.redAccent,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
                                 const SizedBox(height: 15),
 
                                 // --- GLASS BUTTON ---
@@ -325,11 +439,17 @@ class _LoginPageState extends State<LoginPage> {
                                       borderRadius: BorderRadius.circular(15),
                                       // Updated to match your Feedback/Navigation style
                                       gradient: const LinearGradient(
-                                        colors: [Colors.cyanAccent, Colors.blueAccent, Colors.purpleAccent],
+                                        colors: [
+                                          Colors.cyanAccent,
+                                          Colors.blueAccent,
+                                          Colors.purpleAccent,
+                                        ],
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.cyanAccent.withOpacity(0.3),
+                                          color: Colors.cyanAccent.withOpacity(
+                                            0.3,
+                                          ),
                                           blurRadius: 15,
                                           offset: const Offset(0, 5),
                                         ),
@@ -338,18 +458,23 @@ class _LoginPageState extends State<LoginPage> {
                                     child: Center(
                                       child: _isLoading
                                           ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(color: Color(0xFF0F0C29), strokeWidth: 2)
-                                      )
+                                              height: 20,
+                                              width: 20,
+                                              child: CircularProgressIndicator(
+                                                color: Color(0xFF0F0C29),
+                                                strokeWidth: 2,
+                                              ),
+                                            )
                                           : const Text(
-                                        "LOG IN",
-                                        style: TextStyle(
-                                          color: Color(0xFF0F0C29), // Dark text for high contrast on neon
-                                          fontWeight: FontWeight.bold,
-                                          letterSpacing: 1.2,
-                                        ),
-                                      ),
+                                              "LOG IN",
+                                              style: TextStyle(
+                                                color: Color(
+                                                  0xFF0F0C29,
+                                                ), // Dark text for high contrast on neon
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 1.2,
+                                              ),
+                                            ),
                                     ),
                                   ),
                                 ),
@@ -360,8 +485,20 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 30),
                       TextButton(
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterPage(initialIsBusiness: isBusiness))),
-                        child: const Text("CREATE NEW ACCOUNT", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                RegisterPage(initialIsBusiness: isBusiness),
+                          ),
+                        ),
+                        child: const Text(
+                          "CREATE NEW ACCOUNT",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueAccent,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -376,7 +513,8 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildRoleSwitch() {
     return Container(
-      width: 280, height: 50,
+      width: 280,
+      height: 50,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.05),
@@ -387,7 +525,9 @@ class _LoginPageState extends State<LoginPage> {
         children: [
           AnimatedAlign(
             duration: const Duration(milliseconds: 250),
-            alignment: isBusiness ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: isBusiness
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
             child: Container(
               width: 135,
               decoration: BoxDecoration(
@@ -397,7 +537,10 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 8)
+                  BoxShadow(
+                    color: Colors.cyanAccent.withOpacity(0.2),
+                    blurRadius: 8,
+                  ),
                 ],
               ),
             ),
@@ -405,32 +548,36 @@ class _LoginPageState extends State<LoginPage> {
           Row(
             children: [
               Expanded(
-                  child: GestureDetector(
-                      onTap: () => setState(() => isBusiness = false),
-                      child: Center(
-                          child: Text(
-                              "User",
-                              style: TextStyle(
-                                  color: !isBusiness ? const Color(0xFF0F0C29) : Colors.white70,
-                                  fontWeight: FontWeight.bold
-                              )
-                          )
-                      )
-                  )
+                child: GestureDetector(
+                  onTap: () => setState(() => isBusiness = false),
+                  child: Center(
+                    child: Text(
+                      "User",
+                      style: TextStyle(
+                        color: !isBusiness
+                            ? const Color(0xFF0F0C29)
+                            : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               ),
               Expanded(
-                  child: GestureDetector(
-                      onTap: () => setState(() => isBusiness = true),
-                      child: Center(
-                          child: Text(
-                              "Business",
-                              style: TextStyle(
-                                  color: isBusiness ? const Color(0xFF0F0C29) : Colors.white70,
-                                  fontWeight: FontWeight.bold
-                              )
-                          )
-                      )
-                  )
+                child: GestureDetector(
+                  onTap: () => setState(() => isBusiness = true),
+                  child: Center(
+                    child: Text(
+                      "Business",
+                      style: TextStyle(
+                        color: isBusiness
+                            ? const Color(0xFF0F0C29)
+                            : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -439,7 +586,12 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, bool isPassword = false}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool isPassword = false,
+  }) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
@@ -448,11 +600,27 @@ class _LoginPageState extends State<LoginPage> {
         hintText: hint,
         hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
         prefixIcon: Icon(icon, color: Colors.blueAccent, size: 20),
-        suffixIcon: isPassword ? IconButton(icon: Icon(_obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye, color: Colors.white54, size: 18), onPressed: () => setState(() => _obscurePassword = !_obscurePassword)) : null,
+        suffixIcon: isPassword
+            ? IconButton(
+                icon: Icon(
+                  _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                  color: Colors.white54,
+                  size: 18,
+                ),
+                onPressed: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+              )
+            : null,
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: const BorderSide(color: Colors.blueAccent),
+        ),
       ),
     );
   }

@@ -40,7 +40,10 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'FYP App',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.deepPurple,
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
       ),
       // Change this from LoginPage() to GetStartedPage()
@@ -60,8 +63,8 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   late final StreamSubscription<AuthState> _authSubscription;
-  final GlobalKey<UserProfilePageState> _profileKey = GlobalKey<
-      UserProfilePageState>();
+  final GlobalKey<UserProfilePageState> _profileKey =
+      GlobalKey<UserProfilePageState>();
   late List<Widget> _pages;
 
   @override
@@ -76,16 +79,16 @@ class _MainNavigationState extends State<MainNavigation> {
       UserProfilePage(key: _profileKey, userData: widget.userData),
     ];
 
-    _authSubscription =
-        Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-          if (data.event == AuthChangeEvent.passwordRecovery && mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const UpdatePasswordPage()),
-            );
-          }
-        });
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) {
+      if (data.event == AuthChangeEvent.passwordRecovery && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const UpdatePasswordPage()),
+        );
+      }
+    });
   }
 
   @override
@@ -99,17 +102,29 @@ class _MainNavigationState extends State<MainNavigation> {
     final supabase = Supabase.instance.client;
     final userId = widget.userData['id'];
 
-    final systemStream = supabase.from('system_messages').stream(
-        primaryKey: ['id']).eq('user_id', userId);
-    final messagesStream = supabase.from('messages')
+    final systemStream = supabase
+        .from('system_messages')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId);
+    final messagesStream = supabase
+        .from('messages')
         .stream(primaryKey: ['id'])
         .eq('receiver_id', userId);
-    final bookingStream = supabase.from('bookings')
+    final bookingStream = supabase
+        .from('bookings')
         .stream(primaryKey: ['id'])
         .eq('user_id', userId.toString());
+    final commentStream = supabase
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId);
 
-    final combinedStream = StreamGroup.merge(
-        [systemStream, messagesStream, bookingStream]);
+    final combinedStream = StreamGroup.merge([
+      systemStream,
+      messagesStream,
+      bookingStream,
+      commentStream,
+    ]);
     yield await _checkRedDotConditions(supabase, userId);
 
     await for (final _ in combinedStream) {
@@ -118,31 +133,57 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   // --- LOGIC PRESERVED: Condition checks ---
-  Future<bool> _checkRedDotConditions(SupabaseClient supabase,
-      dynamic userId) async {
+  Future<bool> _checkRedDotConditions(SupabaseClient supabase, dynamic userId) async {
     try {
-      final systemMessages = await supabase.from('system_messages').select().eq(
-          'user_id', userId).eq('is_read', false);
-      final chatMessages = await supabase.from('messages').select().eq(
-          'receiver_id', userId).eq('is_read', false);
-      final bookings = await supabase.from('bookings').select().eq(
-          'user_id', userId.toString());
+      // Ensure userId is in the correct format for your queries
+      final queryUserId = userId;
+
+      final systemMessages = await supabase
+          .from('system_messages')
+          .select()
+          .eq('user_id', queryUserId)
+          .eq('is_read', false);
+
+      final chatMessages = await supabase
+          .from('messages')
+          .select()
+          .eq('receiver_id', queryUserId)
+          .eq('is_read', false);
+
+      final commentNotifications = await supabase
+          .from('notifications')
+          .select()
+          .eq('user_id', queryUserId)
+          .eq('is_read', false);
+      final bookings = await supabase
+          .from('bookings')
+          .select()
+          .eq('user_id', userId.toString());
 
       final now = DateTime.now();
       final String today = DateFormat('yyyy-MM-dd').format(now);
       final String currentTime = DateFormat('HH:mm:ss').format(now);
 
-      bool hasTodayBooking = bookings.any((b) {
-        final isToday = b['booking_date'] == today;
+      bool hasNotification = bookings.any((b) {
+        // Condition A: Booking is TODAY (Reminder)
+        bool isToday = b['booking_date'] == today;
         String bTime = b['booking_time'] ?? "00:00:00";
         if (bTime.length == 5) bTime += ":00";
         String status = (b['status'] ?? "").toLowerCase();
         bool isActive = status != "rejected" && status != "cancelled";
-        return isToday && bTime.compareTo(currentTime) >= 0 && isActive;
-      });
+        bool isReminder =
+            isToday && bTime.compareTo(currentTime) >= 0 && isActive;
 
-      return systemMessages.isNotEmpty || chatMessages.isNotEmpty ||
-          hasTodayBooking;
+        // Condition B: Business updated the status and user hasn't seen it yet (New Notification)
+        // This is the NEW logic linked to your SQL trigger
+        bool isNewUpdate = b['user_viewed'] == false;
+
+        return isReminder || isNewUpdate;
+      });
+      return systemMessages.isNotEmpty ||
+          chatMessages.isNotEmpty ||
+          commentNotifications.isNotEmpty ||
+          hasNotification;
     } catch (e) {
       debugPrint("Red dot error: $e");
       return false;
@@ -173,10 +214,7 @@ class _MainNavigationState extends State<MainNavigation> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       extendBody: true, // Crucial for content to show behind glass nav
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: _buildMidnightNavBar(),
     );
   }
@@ -194,10 +232,7 @@ class _MainNavigationState extends State<MainNavigation> {
             // Deeper midnight opacity for better icon contrast
             color: const Color(0xFF0F0C29).withOpacity(0.85),
             border: Border(
-              top: BorderSide(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 0.5
-              ),
+              top: BorderSide(color: Colors.white.withOpacity(0.1), width: 0.5),
             ),
           ),
           child: Row(
@@ -227,7 +262,9 @@ class _MainNavigationState extends State<MainNavigation> {
             Icon(
               icon,
               // Brighter Cyan and White for higher visibility on light maps
-              color: isSelected ? Colors.cyanAccent : Colors.white.withOpacity(0.4),
+              color: isSelected
+                  ? Colors.cyanAccent
+                  : Colors.white.withOpacity(0.4),
               size: 26,
             ),
             const SizedBox(height: 4),
@@ -240,7 +277,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 color: Colors.cyanAccent,
                 shape: BoxShape.circle,
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -259,7 +296,11 @@ class _MainNavigationState extends State<MainNavigation> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const LinearGradient(
-                colors: [Colors.cyanAccent, Colors.blueAccent, Colors.purpleAccent],
+                colors: [
+                  Colors.cyanAccent,
+                  Colors.blueAccent,
+                  Colors.purpleAccent,
+                ],
               ),
               boxShadow: [
                 BoxShadow(
@@ -311,7 +352,10 @@ class _MainNavigationState extends State<MainNavigation> {
                         decoration: BoxDecoration(
                           color: Colors.redAccent,
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFF0F0C29), width: 1.5),
+                          border: Border.all(
+                            color: const Color(0xFF0F0C29),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -323,6 +367,4 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
     );
   }
-
-
 }

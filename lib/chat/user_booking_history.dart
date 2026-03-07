@@ -9,12 +9,26 @@ class UserBookingHistoryPage extends StatelessWidget {
   final Map<String, dynamic> userData;
   const UserBookingHistoryPage({super.key, required this.userData});
 
+  Future<void> _markAsViewed(SupabaseClient supabase) async {
+    try {
+      await supabase
+          .from('bookings')
+          .update({'user_viewed': true})
+          .eq('user_id', userData['id'].toString())
+          .eq('user_viewed', false);
+    } catch (e) {
+      debugPrint("Error updating viewed status: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
     final DateTime now = DateTime.now();
     final String today = DateFormat('yyyy-MM-dd').format(now);
     final String currentTimeString = DateFormat('HH:mm:ss').format(now);
+
+    _markAsViewed(supabase);
 
     return Scaffold(
       extendBodyBehindAppBar: true,

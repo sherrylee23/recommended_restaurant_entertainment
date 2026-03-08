@@ -204,7 +204,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_userName != null) _buildUserBadge(),
                     if (_selectedMedia.isNotEmpty) _buildMediaStrip(),
                     _buildMediaPicker(),
                     const SizedBox(height: 30),
@@ -231,7 +230,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
                       "Catchy title...",
                       formatters: [
                         TextInputFormatter.withFunction(
-                          (old, val) => _getWordCount(val.text) > 5 ? old : val,
+                              (old, val) => _getWordCount(val.text) > 5 ? old : val,
                         ),
                       ],
                     ),
@@ -269,32 +268,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
     );
   }
 
-  Widget _buildUserBadge() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.blueAccent.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
-      ),
-      child: Text(
-        "Posting as: $_userName",
-        style: const TextStyle(
-          color: Colors.blueAccent,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
 
   Widget _buildGlassTextField(
-    TextEditingController controller,
-    String hint, {
-    int maxLines = 1,
-    List<TextInputFormatter>? formatters,
-  }) {
+      TextEditingController controller,
+      String hint, {
+        int maxLines = 1,
+        List<TextInputFormatter>? formatters,
+      }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(15),
       child: BackdropFilter(
@@ -353,16 +333,16 @@ class _CreatePostPageState extends State<CreatePostPage> {
               // Added a clear button if a location is selected
               suffixIcon: _selectedLocationName != null
                   ? IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.white54,
-                        size: 18,
-                      ),
-                      onPressed: () => setState(() {
-                        _selectedLocationName = null;
-                        _locationController.clear();
-                      }),
-                    )
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white54,
+                  size: 18,
+                ),
+                onPressed: () => setState(() {
+                  _selectedLocationName = null;
+                  _locationController.clear();
+                }),
+              )
                   : null,
             ),
           ),
@@ -386,40 +366,40 @@ class _CreatePostPageState extends State<CreatePostPage> {
                   children: _locationResults
                       .map(
                         (loc) => Column(
-                          children: [
-                            ListTile(
-                              title: Text(
-                                loc['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              subtitle: Text(
-                                "${loc['area']} • ${loc['address']}",
-                                maxLines: 1,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
-                                ),
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  _selectedLocationName = loc['name'];
-                                  _locationResults = [];
-                                  _locationController.text = loc['name'];
-                                });
-                              },
+                      children: [
+                        ListTile(
+                          title: Text(
+                            loc['name'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
-                            // Add a separator between results except the last one
-                            if (loc != _locationResults.last)
-                              Divider(
-                                color: Colors.white.withOpacity(0.05),
-                                height: 1,
-                              ),
-                          ],
+                          ),
+                          subtitle: Text(
+                            "${loc['area']} • ${loc['address']}",
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 12,
+                            ),
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedLocationName = loc['name'];
+                              _locationResults = [];
+                              _locationController.text = loc['name'];
+                            });
+                          },
                         ),
-                      )
+                        // Add a separator between results except the last one
+                        if (loc != _locationResults.last)
+                          Divider(
+                            color: Colors.white.withOpacity(0.05),
+                            height: 1,
+                          ),
+                      ],
+                    ),
+                  )
                       .toList(),
                 ),
               ),
@@ -473,7 +453,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
       final isSelected = _selectedCategories.contains(c);
       return GestureDetector(
         onTap: () => setState(
-          () => isSelected
+              () => isSelected
               ? _selectedCategories.remove(c)
               : _selectedCategories.add(c),
         ),
@@ -506,7 +486,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   Widget _buildStarRating() => Row(
     children: List.generate(
       5,
-      (i) => IconButton(
+          (i) => IconButton(
         icon: Icon(
           i < _rating ? Icons.star_rounded : Icons.star_outline_rounded,
           color: Colors.amber,
@@ -524,22 +504,22 @@ class _CreatePostPageState extends State<CreatePostPage> {
       borderRadius: BorderRadius.circular(15),
       gradient: (canSubmit && !_isUploading)
           ? const LinearGradient(
-              colors: [Colors.blueAccent, Colors.purpleAccent],
-            )
+        colors: [Colors.blueAccent, Colors.purpleAccent],
+      )
           : LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.05),
-                Colors.white.withOpacity(0.1),
-              ],
-            ),
+        colors: [
+          Colors.white.withOpacity(0.05),
+          Colors.white.withOpacity(0.1),
+        ],
+      ),
       boxShadow: canSubmit
           ? [
-              BoxShadow(
-                color: Colors.blueAccent.withOpacity(0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ]
+        BoxShadow(
+          color: Colors.blueAccent.withOpacity(0.3),
+          blurRadius: 15,
+          offset: const Offset(0, 5),
+        ),
+      ]
           : [],
     ),
     child: ElevatedButton(

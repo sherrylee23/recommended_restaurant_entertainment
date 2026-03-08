@@ -72,11 +72,19 @@ class _EditPostPageState extends State<EditPostPage> {
       List<String> finalUrls = List.from(_existingUrls);
       final dynamic profileId = widget.post['profile_id'];
 
+      // 1. UPLOAD NEW MEDIA (This will now work with the RLS policy above)
       for (var i = 0; i < _newMedia.length; i++) {
         final path = 'posts/$profileId/edit_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
         await supabase.storage.from('post_media').upload(path, _newMedia[i]);
         finalUrls.add(supabase.storage.from('post_media').getPublicUrl(path));
       }
+
+      // 2. NORMALIZE CATEGORIES (Fixes the issue in image_ce851c.png)
+      final normalizedCategories = _selectedCategories.map((cat) {
+        String s = cat.trim();
+        if (s.isEmpty) return s;
+        return s[0].toUpperCase() + s.substring(1).toLowerCase();
+      }).toList();
 
       final updatedPost = {
         'id': widget.post['id'],
@@ -84,9 +92,9 @@ class _EditPostPageState extends State<EditPostPage> {
         'description': _descriptionController.text.trim(),
         'location_name': _selectedLocationName,
         'rating': _rating,
-        'category_names': _selectedCategories,
+        'category_names': normalizedCategories, // Use normalized list
         'media_urls': finalUrls,
-        'profile_id': widget.post['profile_id'],
+        'profile_id': profileId,
       };
 
       await supabase.from('posts').update(updatedPost).eq('id', widget.post['id']);
@@ -96,7 +104,7 @@ class _EditPostPageState extends State<EditPostPage> {
         Navigator.pop(context, updatedPost);
       }
     } catch (e) {
-      _showSnackBar("Update failed: $e", Colors.red);
+      _showSnackBar("Update failed: ${e.toString()}", Colors.red);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }

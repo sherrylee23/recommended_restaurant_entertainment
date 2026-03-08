@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'nomi_chat_logic.dart';
 import 'package:recommended_restaurant_entertainment/customer_service/report_business.dart';
 
@@ -17,7 +18,11 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
   final ScrollController _scrollController = ScrollController();
   late NomiChatLogic _logic;
 
+  bool _isConnectingToAgent = false;
+  bool _isWithAgent = false;
   bool _isTyping = false;
+
+  // Local list used ONLY before connecting to a human agent
   final List<Map<String, dynamic>> _messages = [
     {"text": "Hi! I'm Nomi. How can I help you today?", "isUser": false},
   ];
@@ -26,29 +31,90 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
   void initState() {
     super.initState();
     _logic = NomiChatLogic(userData: widget.userData);
+    _checkExistingSession();
+  }
+
+  // Check if user already has an active agent session from a previous visit
+  Future<void> _checkExistingSession() async {
+    final response = await Supabase.instance.client
+        .from('support_chats')
+        .select('status')
+        .eq('user_id', widget.userData['id'])
+        .maybeSingle();
+
+    if (response != null && (response['status'] == 'waiting_for_agent' || response['status'] == 'agent_active')) {
+      if (mounted) {
+        setState(() {
+          _isWithAgent = true;
+        });
+      }
+    }
   }
 
   Future<void> _handleSend() async {
     final rawText = _controller.text.trim();
-    if (rawText.isEmpty || _isTyping) return;
+    if (rawText.isEmpty) return;
 
-    _controller.clear();
-    setState(() {
-      _messages.add({"text": rawText, "isUser": true});
-      _isTyping = true;
-    });
-    _scrollToBottom();
+    if (_isWithAgent) {
+      // MODE: HUMAN AGENT
+      // Send directly to database. StreamBuilder will update the UI automatically.
+      _controller.clear();
+      try {
+        await Supabase.instance.client.from('support_messages').insert({
+          'user_id': widget.userData['id'],
+          'content': rawText,
+          'is_admin': false,
+        });
 
-    final result = await _logic.sendMessage(rawText);
+        await Supabase.instance.client
+            .from('support_chats')
+            .update({'last_message_at': DateTime.now().toIso8601String()})
+            .eq('user_id', widget.userData['id']);
+
+        _scrollToBottom();
+      } catch (e) {
+        debugPrint("Error sending message to DB: $e");
+      }
+    } else {
+      // MODE: AI BOT
+      if (_isTyping) return;
+      _controller.clear();
+      setState(() {
+        _messages.add({"text": rawText, "isUser": true});
+        _isTyping = true;
+      });
+      _scrollToBottom();
+
+      final result = await _logic.sendMessage(rawText);
+
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+          _messages.add({
+            "text": result["text"],
+            "isUser": false,
+            "showAction": result["showAction"] ?? false
+          });
+        });
+        _scrollToBottom();
+
+        if (result["text"].contains("[TRIGGER_AGENT]")) {
+          _connectToAgent();
+        }
+      }
+    }
+  }
+
+  Future<void> _connectToAgent() async {
+    if (_isWithAgent || _isConnectingToAgent) return;
+    setState(() => _isConnectingToAgent = true);
+
+    await _logic.switchToHumanAgent();
 
     if (mounted) {
       setState(() {
-        _isTyping = false;
-        _messages.add({
-          "text": result["text"],
-          "isUser": false,
-          "showAction": result["showAction"] ?? false
-        });
+        _isConnectingToAgent = false;
+        _isWithAgent = true;
       });
       _scrollToBottom();
     }
@@ -76,10 +142,29 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("Chat with Nomi", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(_isWithAgent ? "Live Support" : "Chat with Nomi",
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          if (!_isWithAgent)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: TextButton.icon(
+                onPressed: _isConnectingToAgent ? null : _connectToAgent,
+                icon: Icon(
+                  _isConnectingToAgent ? LucideIcons.loader : LucideIcons.headphones,
+                  size: 16,
+                  color: Colors.cyanAccent,
+                ),
+                label: Text(
+                  _isConnectingToAgent ? "Connecting..." : "Live Support",
+                  style: const TextStyle(color: Colors.cyanAccent, fontSize: 12),
+                ),
+              ),
+            ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -93,11 +178,39 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
           child: Column(
             children: [
               Expanded(
-                child: ListView.builder(
+                child: !_isWithAgent
+                    ? ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   itemCount: _messages.length,
                   itemBuilder: (context, index) => _buildMessageBubble(_messages[index]),
+                )
+                    : StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: Supabase.instance.client
+                      .from('support_messages')
+                      .stream(primaryKey: ['id'])
+                      .eq('user_id', widget.userData['id'])
+                      .order('created_at', ascending: true),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) return Center(child: Text("Error: ${snapshot.error}"));
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+                    final messages = snapshot.data!;
+                    _scrollToBottom();
+
+                    return ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        return _buildMessageBubble({
+                          "text": msg['content'],
+                          "isUser": !msg['is_admin'],
+                        });
+                      },
+                    );
+                  },
                 ),
               ),
               if (_isTyping) _buildTypingIndicator(),
@@ -109,26 +222,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildTypingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 20, bottom: 15),
-      child: Row(
-        children: [
-          _buildAvatar(isBot: true),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
-            ),
-            child: const _BouncingDots(),
-          ),
-        ],
-      ),
-    );
-  }
+  // --- UI WIDGETS ---
 
   Widget _buildMessageBubble(Map<String, dynamic> msg) {
     bool isUser = msg["isUser"] ?? false;
@@ -241,7 +335,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                     controller: _controller,
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: "Ask Nomi anything...",
+                      hintText: _isWithAgent ? "Type a message to support..." : "Ask Nomi anything...",
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                       border: InputBorder.none,
                     ),
@@ -253,15 +347,15 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      gradient: _isTyping
+                      gradient: (_isTyping && !_isWithAgent)
                           ? null
                           : const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]),
-                      color: _isTyping ? Colors.white10 : null,
+                      color: (_isTyping && !_isWithAgent) ? Colors.white10 : null,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                        LucideIcons.navigation, // Looks very clean and high-tech
-                        color: _isTyping ? Colors.white24 : const Color(0xFF0F0C29),
+                        LucideIcons.navigation,
+                        color: (_isTyping && !_isWithAgent) ? Colors.white24 : const Color(0xFF0F0C29),
                         size: 18
                     ),
                   ),
@@ -273,9 +367,30 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
       ),
     );
   }
+
+  Widget _buildTypingIndicator() {
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, bottom: 15),
+      child: Row(
+        children: [
+          _buildAvatar(isBot: true),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: const _BouncingDots(),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-// Helper Widget for the Bouncing Dots Animation
+// Bouncing dots widget
 class _BouncingDots extends StatefulWidget {
   const _BouncingDots();
   @override
@@ -294,7 +409,9 @@ class _BouncingDotsState extends State<_BouncingDots> with TickerProviderStateMi
     });
 
     _animations = _controllers.map((controller) {
-      return Tween<double>(begin: 0, end: -5).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
+      return Tween<double>(begin: 0, end: -5).animate(
+          CurvedAnimation(parent: controller, curve: Curves.easeInOut)
+      );
     }).toList();
 
     for (int i = 0; i < 3; i++) {

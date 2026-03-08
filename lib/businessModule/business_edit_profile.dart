@@ -125,7 +125,12 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
                                       onTap: () {
                                         setState(() {
                                           _selectedLocationId = loc['id'].toString();
-                                          _addressController.text = loc['name'];
+
+                                          // Option A: Show only the detailed address
+                                          // _addressController.text = loc['address'] ?? '';
+
+                                          // Option B: Show Name + Address (Recommended for clarity)
+                                          _addressController.text = "${loc['name']} - ${loc['address']}";
                                         });
                                         Navigator.pop(context);
                                       },

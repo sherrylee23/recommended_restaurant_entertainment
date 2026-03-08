@@ -8,6 +8,7 @@ import 'admin_approval_list.dart';
 import 'admin_feedback_list.dart';
 import 'admin_report_user.dart';
 import 'admin_report_business.dart';
+import 'admin_chat_list.dart'; // Ensure this matches your filename
 
 class AdminDashboard extends StatefulWidget {
   final Map<String, dynamic> adminData;
@@ -20,6 +21,7 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
   late final List<Widget> _adminPages;
+  RealtimeChannel? _statusSubscription;
 
   @override
   void initState() {
@@ -27,10 +29,68 @@ class _AdminDashboardState extends State<AdminDashboard> {
     _adminPages = [
       AdminApprovalList(adminData: widget.adminData),
       const AdminStatsPage(),
+      const AdminChatPage(), // Index 2
       const AdminFeedbackListPage(),
       const AdminReportUserListPage(),
       const AdminReportBusinessListPage(),
     ];
+    _setupAdminNotifications();
+  }
+
+  // --- REALTIME NOTIFICATION LOGIC ---
+  void _setupAdminNotifications() {
+    _statusSubscription = Supabase.instance.client
+        .channel('admin-alerts')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.all, // Listen for Inserts or Updates
+      schema: 'public',
+      table: 'support_chats',
+      callback: (payload) {
+        final newStatus = payload.newRecord['status'];
+        // Only alert if someone just moved to 'waiting_for_agent'
+        if (newStatus == 'waiting_for_agent') {
+          _showNewChatAlert(payload.newRecord['user_id'].toString());
+        }
+      },
+    )
+        .subscribe();
+  }
+
+  void _showNewChatAlert(String userId) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showMaterialBanner(
+      MaterialBanner(
+        elevation: 10,
+        backgroundColor: Colors.cyanAccent,
+        leading: const Icon(LucideIcons.bellRing, color: Color(0xFF0F0C29)),
+        content: Text(
+          "New Support Request! User #$userId is waiting for help.",
+          style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+              setState(() => _selectedIndex = 2); // Navigate to Chat Page
+            },
+            child: const Text("OPEN CHAT", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold)),
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.x, color: Color(0xFF0F0C29)),
+            onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    if (_statusSubscription != null) {
+      Supabase.instance.client.removeChannel(_statusSubscription!);
+    }
+    super.dispose();
   }
 
   @override
@@ -39,7 +99,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
-      extendBody: true, // Allows background to flow under bars
+      extendBody: true,
       body: Stack(
         children: [
           // 1. GLOBAL BACKGROUND GRADIENT
@@ -58,7 +118,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           // 2. MAIN LAYOUT
           Row(
             children: [
-              // SIDEBAR: Optimized for Desktop
               if (isDesktop)
                 Container(
                   decoration: BoxDecoration(
@@ -78,12 +137,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       padding: EdgeInsets.symmetric(vertical: 30),
                       child: Icon(LucideIcons.shieldCheck, color: Colors.cyanAccent, size: 45),
                     ),
-                    destinations: const [
-                      NavigationRailDestination(icon: Icon(LucideIcons.checkCircle), label: Text('Approvals')),
-                      NavigationRailDestination(icon: Icon(LucideIcons.barChart2), label: Text('Stats')),
-                      NavigationRailDestination(icon: Icon(LucideIcons.messageSquare), label: Text('Feedback')),
-                      NavigationRailDestination(icon: Icon(LucideIcons.alertTriangle), label: Text('Reports User')),
-                      NavigationRailDestination(icon: Icon(LucideIcons.megaphone), label: Text('Report Business')),
+                    destinations: [
+                      const NavigationRailDestination(icon: Icon(LucideIcons.checkCircle), label: Text('Approvals')),
+                      const NavigationRailDestination(icon: Icon(LucideIcons.barChart2), label: Text('Stats')),
+
+                      // CHAT DESTINATION WITH BADGE
+                      NavigationRailDestination(
+                        icon: _buildChatIcon(LucideIcons.messageCircle),
+                        label: const Text('Live Chat'),
+                      ),
+
+                      const NavigationRailDestination(icon: Icon(LucideIcons.messageSquare), label: Text('Feedback')),
+                      const NavigationRailDestination(icon: Icon(LucideIcons.alertTriangle), label: Text('Reports User')),
+                      const NavigationRailDestination(icon: Icon(LucideIcons.megaphone), label: Text('Report Business')),
                     ],
                     trailing: Expanded(
                       child: Align(
@@ -100,7 +166,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ),
 
-              // PAGE CONTENT
               Expanded(
                 child: ClipRRect(
                   child: _adminPages[_selectedIndex],
@@ -111,7 +176,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ],
       ),
 
-      // BOTTOM NAVIGATION: Optimized for Mobile
+      // BOTTOM NAVIGATION (Mobile)
       bottomNavigationBar: isDesktop
           ? null
           : Container(
@@ -128,17 +193,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
               onTap: (index) => setState(() => _selectedIndex = index),
               selectedItemColor: Colors.cyanAccent,
               unselectedItemColor: Colors.white.withOpacity(0.4),
-              items: const [
-                BottomNavigationBarItem(icon: Icon(LucideIcons.checkCircle), label: 'Approvals'),
-                BottomNavigationBarItem(icon: Icon(LucideIcons.barChart2), label: 'Stats'),
-                BottomNavigationBarItem(icon: Icon(LucideIcons.messageSquare), label: 'Feedback'),
-                BottomNavigationBarItem(icon: Icon(LucideIcons.alertTriangle), label: 'Reports'),
-                BottomNavigationBarItem(icon: Icon(LucideIcons.megaphone), label: 'Business'),
+              items: [
+                const BottomNavigationBarItem(icon: Icon(LucideIcons.checkCircle), label: 'Approvals'),
+                const BottomNavigationBarItem(icon: Icon(LucideIcons.barChart2), label: 'Stats'),
+
+                // CHAT ITEM WITH BADGE
+                BottomNavigationBarItem(
+                  icon: _buildChatIcon(LucideIcons.messageCircle),
+                  label: 'Chat',
+                ),
+
+                const BottomNavigationBarItem(icon: Icon(LucideIcons.messageSquare), label: 'Feedback'),
+                const BottomNavigationBarItem(icon: Icon(LucideIcons.alertTriangle), label: 'Reports'),
+                const BottomNavigationBarItem(icon: Icon(LucideIcons.megaphone), label: 'Business'),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // Helper widget to show a red badge if users are waiting
+  Widget _buildChatIcon(IconData icon) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: Supabase.instance.client
+          .from('support_chats')
+          .stream(primaryKey: ['user_id'])
+          .eq('status', 'waiting_for_agent'),
+      builder: (context, snapshot) {
+        int count = snapshot.hasData ? snapshot.data!.length : 0;
+        return Badge(
+          label: Text(count.toString()),
+          isLabelVisible: count > 0,
+          backgroundColor: Colors.redAccent,
+          child: Icon(icon),
+        );
+      },
     );
   }
 }

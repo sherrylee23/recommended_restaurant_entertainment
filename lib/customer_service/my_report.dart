@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class MyReportListPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -10,14 +12,15 @@ class MyReportListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final supabase = Supabase.instance.client;
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text(
-          "My Reports Status",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        title: Text(
+          lp.getString('my_reports_status'), // TRANSLATED
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -52,7 +55,10 @@ class MyReportListPage extends StatelessWidget {
                     children: [
                       Icon(LucideIcons.clipboardList, size: 50, color: Colors.white.withOpacity(0.1)),
                       const SizedBox(height: 16),
-                      Text("No reports found.", style: TextStyle(color: Colors.white.withOpacity(0.3))),
+                      Text(
+                        lp.getString('no_reports_found'), // TRANSLATED
+                        style: TextStyle(color: Colors.white.withOpacity(0.3)),
+                      ),
                     ],
                   ),
                 );
@@ -64,7 +70,8 @@ class MyReportListPage extends StatelessWidget {
                 itemCount: reports.length,
                 itemBuilder: (context, index) {
                   final report = reports[index];
-                  final bool isResolved = report['status'] == 'resolved';
+                  final String status = report['status'] ?? 'pending';
+                  final bool isResolved = status == 'resolved';
                   final Color statusColor = isResolved ? Colors.greenAccent : Colors.amberAccent;
 
                   return Container(
@@ -100,7 +107,7 @@ class MyReportListPage extends StatelessWidget {
                               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                             subtitle: Text(
-                              "Status: ${report['status'].toString().toUpperCase()}",
+                              "${lp.getString('status')}: ${status.toUpperCase()}", // TRANSLATED
                               style: TextStyle(color: statusColor.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w600),
                             ),
                             children: [
@@ -111,13 +118,13 @@ class MyReportListPage extends StatelessWidget {
                                   children: [
                                     const Divider(color: Colors.white10),
                                     const SizedBox(height: 10),
-                                    const Text(
-                                      "Your Description:",
-                                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.cyanAccent, fontSize: 13),
+                                    Text(
+                                      lp.getString('your_description'), // TRANSLATED
+                                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.cyanAccent, fontSize: 13),
                                     ),
                                     const SizedBox(height: 5),
                                     Text(
-                                      report['description'] ?? "No description provided.",
+                                      report['description'] ?? lp.getString('no_description'), // TRANSLATED
                                       style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
                                     ),
                                     if (isResolved && report['admin_feedback'] != null) ...[
@@ -133,11 +140,14 @@ class MyReportListPage extends StatelessWidget {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            const Row(
+                                            Row(
                                               children: [
-                                                Icon(LucideIcons.messageSquare, size: 14, color: Colors.cyanAccent),
-                                                SizedBox(width: 8),
-                                                Text("Admin Reply", style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                                                const Icon(LucideIcons.messageSquare, size: 14, color: Colors.cyanAccent),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  lp.getString('admin_reply'), // TRANSLATED
+                                                  style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 12),
+                                                ),
                                               ],
                                             ),
                                             const SizedBox(height: 8),

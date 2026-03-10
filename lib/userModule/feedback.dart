@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class FeedbackPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -30,10 +32,10 @@ class _FeedbackPageState extends State<FeedbackPage> {
     }
   }
 
-  Future<void> _submitFeedback() async {
+  Future<void> _submitFeedback(LanguageProvider lp) async {
     if (_descriptionController.text.trim().isEmpty || _rating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please provide a rating and description")),
+        SnackBar(content: Text(lp.getString('feedback_error'))), // TRANSLATED
       );
       return;
     }
@@ -59,7 +61,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Thank you for your feedback!")),
+          SnackBar(content: Text(lp.getString('feedback_success'))), // TRANSLATED
         );
         Navigator.pop(context);
       }
@@ -76,11 +78,13 @@ class _FeedbackPageState extends State<FeedbackPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text("Feedback", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(lp.getString('feedback'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)), // TRANSLATED
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -102,7 +106,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLabel("Rate your experience"),
+                _buildLabel(lp.getString('rate_experience')), // TRANSLATED
                 const SizedBox(height: 10),
                 Row(
                   children: List.generate(5, (index) => IconButton(
@@ -117,7 +121,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   )),
                 ),
                 const SizedBox(height: 30),
-                _buildLabel("Description"),
+                _buildLabel(lp.getString('description')), // TRANSLATED (Inherited from l10n)
                 const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(15),
@@ -128,7 +132,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                       maxLines: 4,
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
-                        hintText: "What can we improve?",
+                        hintText: lp.getString('improvement_hint'), // TRANSLATED
                         hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                         filled: true,
                         fillColor: Colors.white.withOpacity(0.05),
@@ -145,7 +149,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                _buildLabel("Attach Image"),
+                _buildLabel(lp.getString('attach_image')), // TRANSLATED
                 const SizedBox(height: 12),
                 GestureDetector(
                   onTap: _pickImage,
@@ -170,13 +174,13 @@ class _FeedbackPageState extends State<FeedbackPage> {
                       children: [
                         Icon(LucideIcons.imagePlus, color: Colors.cyanAccent.withOpacity(0.6), size: 40),
                         const SizedBox(height: 12),
-                        Text("Click to upload", style: TextStyle(color: Colors.white.withOpacity(0.4))),
+                        Text(lp.getString('click_upload'), style: TextStyle(color: Colors.white.withOpacity(0.4))), // TRANSLATED
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(height: 50),
-                _buildSubmitButton(),
+                _buildSubmitButton(lp), // Pass Provider
                 const SizedBox(height: 30),
               ],
             ),
@@ -207,7 +211,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildSubmitButton(LanguageProvider lp) {
     return SizedBox(
       width: double.infinity,
       height: 55,
@@ -220,7 +224,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
           ],
         ),
         child: ElevatedButton(
-          onPressed: _isUploading ? null : _submitFeedback,
+          onPressed: _isUploading ? null : () => _submitFeedback(lp),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
@@ -228,7 +232,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
           ),
           child: _isUploading
               ? const SizedBox(height: 25, width: 25, child: CircularProgressIndicator(color: Color(0xFF0F0C29), strokeWidth: 3))
-              : const Text("SUBMIT FEEDBACK", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+              : Text(lp.getString('submit_feedback'), style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)), // TRANSLATED
         ),
       ),
     );

@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class PersonalizedPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -18,7 +20,6 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
   @override
   void initState() {
     super.initState();
-    // --- LOGIC PRESERVED ---
     _loadFreshAnalysis();
   }
 
@@ -43,7 +44,7 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
     }
   }
 
-  Widget _buildPercentageAnalysis(List<MapEntry<String, int>> sortedData) {
+  Widget _buildPercentageAnalysis(List<MapEntry<String, int>> sortedData, LanguageProvider lp) {
     final activeData = sortedData.where((e) => e.value > 0).toList();
     final int totalViews = activeData.fold(0, (sum, entry) => sum + entry.value);
 
@@ -60,10 +61,10 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
             children: [
               Icon(LucideIcons.barChart2, color: Colors.white.withOpacity(0.2), size: 40),
               const SizedBox(height: 16),
-              const Text(
-                "No browsing history found yet.\nKeep exploring to build your AI profile!",
+              Text(
+                lp.getString('no_history_yet'), // TRANSLATED
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white38, fontSize: 13, height: 1.5),
+                style: const TextStyle(color: Colors.white38, fontSize: 13, height: 1.5),
               ),
             ],
           ),
@@ -140,6 +141,7 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
     final sortedAnalysis = _analysisData.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -153,9 +155,9 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Personalization",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          lp.getString('personalized'), // TRANSLATED TITLE
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -178,14 +180,16 @@ class _PersonalizedPageState extends State<PersonalizedPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionHeader("Interest Profile",
-                    "This analysis is automatically generated based on your real-time browsing behavior."),
+                _buildSectionHeader(
+                  lp.getString('interest_profile'), // TRANSLATED
+                  lp.getString('interest_desc'),    // TRANSLATED
+                ),
                 const SizedBox(height: 30),
-                _buildPercentageAnalysis(sortedAnalysis),
+                _buildPercentageAnalysis(sortedAnalysis, lp),
                 const SizedBox(height: 40),
                 Center(
                   child: Text(
-                    "The more you interact, the more accurate your feed becomes.",
+                    lp.getString('accuracy_tip'), // TRANSLATED
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.3),

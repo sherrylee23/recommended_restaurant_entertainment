@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'view_business_profile.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class UserBookingHistoryPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -23,6 +25,7 @@ class UserBookingHistoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
     final supabase = Supabase.instance.client;
     final DateTime now = DateTime.now();
     final String today = DateFormat('yyyy-MM-dd').format(now);
@@ -34,7 +37,7 @@ class UserBookingHistoryPage extends StatelessWidget {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text("My Booking History", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(lp.getString('booking_history'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -63,7 +66,7 @@ class UserBookingHistoryPage extends StatelessWidget {
             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
 
             final bookings = snapshot.data!;
-            if (bookings.isEmpty) return _buildStatusText("No bookings found.");
+            if (bookings.isEmpty) return _buildStatusText(lp.getString('no_bookings'));
 
             // --- LOGIC: Filter Today's Active Bookings ---
             final upcomingToday = bookings.where((b) {
@@ -77,14 +80,14 @@ class UserBookingHistoryPage extends StatelessWidget {
             return SafeArea(
               child: Column(
                 children: [
-                  if (upcomingToday.isNotEmpty) _buildTodayReminder(upcomingToday),
+                  if (upcomingToday.isNotEmpty) _buildTodayReminder(upcomingToday, lp),
                   Expanded(
                     child: ListView.builder(
                       padding: const EdgeInsets.all(20),
                       itemCount: bookings.length,
                       itemBuilder: (context, index) {
                         final b = bookings[index];
-                        return _buildBookingCard(context, b, today, currentTimeString, supabase);
+                        return _buildBookingCard(context, b, today, currentTimeString, supabase, lp);
                       },
                     ),
                   ),
@@ -97,7 +100,7 @@ class UserBookingHistoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildBookingCard(BuildContext context, Map<String, dynamic> b, String today, String currentTime, SupabaseClient supabase) {
+  Widget _buildBookingCard(BuildContext context, Map<String, dynamic> b, String today, String currentTime, SupabaseClient supabase, LanguageProvider lp) {
     final String bookingTime = b['booking_time'] ?? "--:--";
     final String status = (b['status'] ?? "").toLowerCase();
     final bool isToday = b['booking_date'] == today;
@@ -169,7 +172,7 @@ class UserBookingHistoryPage extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 _buildInfoChip(LucideIcons.clock, bookingTime, Colors.blueAccent),
-                                _buildInfoChip(LucideIcons.users, "${b['pax']} Pax", Colors.purpleAccent),
+                                _buildInfoChip(LucideIcons.users, "${b['pax']} ${lp.getString('pax')}", Colors.purpleAccent),
                                 _buildInfoChip(
                                   isInactive ? LucideIcons.xCircle : LucideIcons.checkCircle,
                                   status.toUpperCase(),
@@ -178,7 +181,7 @@ class UserBookingHistoryPage extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(height: 20),
-                            _buildAreaSuggestions(bizData['id'], area, supabase),
+                            _buildAreaSuggestions(bizData['id'], area, supabase, lp),
                           ],
                         ),
                       ),
@@ -193,7 +196,7 @@ class UserBookingHistoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildTodayReminder(List<Map<String, dynamic>> upcomingToday) {
+  Widget _buildTodayReminder(List<Map<String, dynamic>> upcomingToday, LanguageProvider lp) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(20),
@@ -213,10 +216,10 @@ class UserBookingHistoryPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Upcoming Today!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(lp.getString('upcoming_today'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                 const SizedBox(height: 2),
                 Text(
-                  "Next at ${upcomingToday.first['booking_time']}. Enjoy your visit!",
+                  lp.getString('next_at').replaceFirst('{}', upcomingToday.first['booking_time']),
                   style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
                 ),
               ],
@@ -227,12 +230,12 @@ class UserBookingHistoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildAreaSuggestions(dynamic currentBizId, String? area, SupabaseClient supabase) {
+  Widget _buildAreaSuggestions(dynamic currentBizId, String? area, SupabaseClient supabase, LanguageProvider lp) {
     if (area == null) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("ALSO IN $area", style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        Text(lp.getString('also_in').replaceFirst('{}', area.toUpperCase()), style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         const SizedBox(height: 12),
         FutureBuilder<List<Map<String, dynamic>>>(
           future: supabase.from('business_profiles').select('*, locations!inner(*)').eq('locations.area', area).neq('id', currentBizId).limit(5),
@@ -249,14 +252,13 @@ class UserBookingHistoryPage extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final item = suggestions[index];
                   return GestureDetector(
-                    // inside _buildAreaSuggestions in UserBookingHistoryPage
                     onTap: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => UserViewBusinessPage(
                             businessData: item,
-                            userData: userData, // Corrected parameter name
+                            userData: userData,
                           ),
                         ),
                       );
@@ -289,7 +291,7 @@ class UserBookingHistoryPage extends StatelessWidget {
                             ],
                           ),
                           Text(
-                              item['business_type'] ?? "Entertainment",
+                              lp.getString(item['business_type']?.toString().toLowerCase() ?? 'place'),
                               style: const TextStyle(fontSize: 10, color: Colors.cyanAccent)
                           ),
                         ],

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:ui'; // Required for Glassmorphism
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import '../postModule/post_detail.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class SearchResultsPage extends StatefulWidget {
   final String query;
@@ -24,13 +27,43 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   List<Map<String, dynamic>> _results = [];
   String _selectedSort = 'All';
 
+  // --- REALTIME STATE ---
+  RealtimeChannel? _searchSyncChannel;
+
   @override
   void initState() {
     super.initState();
     _performSearch();
+    _setupRealtime(); // Initialize real-time listener
   }
 
-  // --- LOGIC PRESERVED EXACTLY ---
+  @override
+  void dispose() {
+    if (_searchSyncChannel != null) {
+      Supabase.instance.client.removeChannel(_searchSyncChannel!);
+    }
+    super.dispose();
+  }
+
+  // --- REALTIME LOGIC ---
+  void _setupRealtime() {
+    _searchSyncChannel = Supabase.instance.client
+        .channel('search_results_sync')
+        .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'likes',
+        callback: (payload) => _performSearch())
+        .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'comments',
+        callback: (payload) => _performSearch());
+
+    _searchSyncChannel!.subscribe();
+  }
+
+  // --- LOGIC PRESERVED ---
   Future<void> _performSearch() async {
     try {
       final supabase = Supabase.instance.client;
@@ -87,6 +120,9 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Access language provider
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -102,13 +138,13 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         child: SafeArea(
           child: Column(
             children: [
-              _buildGlassHeader(),
-              if (_showFilterBar && !_isLoading) _buildTopCategoryBar(),
+              _buildGlassHeader(lp),
+              if (_showFilterBar && !_isLoading) _buildTopCategoryBar(lp),
               Expanded(
-                child: _isLoading
+                child: _isLoading && _results.isEmpty
                     ? const Center(child: CircularProgressIndicator(color: Colors.white24))
                     : _results.isEmpty
-                    ? _buildNoResults()
+                    ? _buildNoResults(lp)
                     : GridView.builder(
                   padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -128,7 +164,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     );
   }
 
-  Widget _buildGlassHeader() {
+  Widget _buildGlassHeader(LanguageProvider lp) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: Row(
@@ -139,7 +175,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
           ),
           Expanded(
             child: Text(
-              "Results for '${widget.query}'",
+              // Using translated "Results for" prefix
+              "${lp.getString('results_for')} '${widget.query}'",
               textAlign: TextAlign.center,
               style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               overflow: TextOverflow.ellipsis,
@@ -157,8 +194,16 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     );
   }
 
-  Widget _buildTopCategoryBar() {
-    final options = ['All', 'Latest', 'Top Rated', 'Most Liked'];
+  Widget _buildTopCategoryBar(LanguageProvider lp) {
+    // Map keys to translations
+    final Map<String, String> optionMap = {
+      'All': lp.getString('all'),
+      'Latest': lp.getString('latest'),
+      'Top Rated': lp.getString('top_rated'),
+      'Most Liked': lp.getString('most_liked'),
+    };
+    final options = optionMap.keys.toList();
+
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -174,13 +219,16 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             itemCount: options.length,
             itemBuilder: (context, index) {
-              final isSelected = _selectedSort == options[index];
+              final String internalKey = options[index];
+              final String displayLabel = optionMap[internalKey]!;
+              final isSelected = _selectedSort == internalKey;
+
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 12),
                 child: GestureDetector(
                   onTap: () {
                     setState(() {
-                      _selectedSort = options[index];
+                      _selectedSort = internalKey;
                       _isLoading = true;
                     });
                     _performSearch();
@@ -196,7 +244,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                       ),
                     ),
                     child: Text(
-                      options[index],
+                      displayLabel,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -213,14 +261,17 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     );
   }
 
-  Widget _buildNoResults() {
+  Widget _buildNoResults(LanguageProvider lp) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(LucideIcons.ghost, size: 70, color: Colors.white.withOpacity(0.2)),
           const SizedBox(height: 16),
-          const Text("No related posts found.", style: TextStyle(color: Colors.white60, fontSize: 16)),
+          Text(
+            lp.getString('no_results'), // TRANSLATED EMPTY STATE
+            style: const TextStyle(color: Colors.white60, fontSize: 16),
+          ),
         ],
       ),
     );
@@ -234,10 +285,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
     final int postLikeCount = (post['likes'] as List).isNotEmpty
         ? (post['likes'] as List).first['count'] ?? 0 : 0;
-
     final int postCommentCount = (post['comments'] as List).isNotEmpty
         ? (post['comments'] as List).first['count'] ?? 0 : 0;
-
     final bool isLikedByMe = (post['user_liked'] as List).isNotEmpty;
 
     return GestureDetector(

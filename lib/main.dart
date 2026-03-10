@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui'; // Required for Glassmorphism
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'package:recommended_restaurant_entertainment/Location/location_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -14,6 +15,7 @@ import 'package:recommended_restaurant_entertainment/loginModule/updatePassword_
 import 'package:recommended_restaurant_entertainment/postModule/createPost.dart';
 import 'package:recommended_restaurant_entertainment/userModule/user_profile.dart';
 import 'package:recommended_restaurant_entertainment/chat/chat_page.dart';
+import 'language_provider.dart'; // REQUIRED
 import 'get_start.dart';
 
 // 1. Your Supabase Credentials preserved
@@ -29,25 +31,38 @@ Future<void> main() async {
       authFlowType: AuthFlowType.pkce,
     ),
   );
-  runApp(const MyApp());
+
+  // Wrap the entire App with the Language Provider
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => LanguageProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'FYP App',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-      ),
-      // Change this from LoginPage() to GetStartedPage()
-      home: const GetStartedPage(),
+    // Consumer rebuilds the MaterialApp whenever changeLanguage() is called
+    return Consumer<LanguageProvider>(
+      builder: (context, lp, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'FYP App',
+          locale: lp.currentLocale, // This dynamically updates the app's locale
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          home: const GetStartedPage(),
+        );
+      },
     );
   }
 }
@@ -63,14 +78,17 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   late final StreamSubscription<AuthState> _authSubscription;
+
+  // --- REALTIME SYNC CHANNEL ---
+  late final RealtimeChannel _databaseChanges;
+
   final GlobalKey<UserProfilePageState> _profileKey =
-      GlobalKey<UserProfilePageState>();
+  GlobalKey<UserProfilePageState>();
   late List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-    // Logic preserved exactly
     _pages = [
       DiscoverPage(currentUserData: widget.userData),
       MapDiscoveryPage(userData: widget.userData),
@@ -79,9 +97,26 @@ class _MainNavigationState extends State<MainNavigation> {
       UserProfilePage(key: _profileKey, userData: widget.userData),
     ];
 
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
-      data,
-    ) {
+    // --- INITIALIZE REALTIME SYNC ---
+    _databaseChanges = Supabase.instance.client
+        .channel('public:realtime_sync')
+        .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'likes',
+        callback: (payload) {
+          debugPrint('Global Realtime Change: Like updated');
+        })
+        .onPostgresChanges(
+        event: PostgresChangeEvent.all,
+        schema: 'public',
+        table: 'comments',
+        callback: (payload) {
+          debugPrint('Global Realtime Change: Comment updated');
+        })
+        .subscribe();
+
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       if (data.event == AuthChangeEvent.passwordRecovery && mounted) {
         Navigator.push(
           context,
@@ -94,6 +129,7 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void dispose() {
     _authSubscription.cancel();
+    Supabase.instance.client.removeChannel(_databaseChanges);
     super.dispose();
   }
 
@@ -104,20 +140,16 @@ class _MainNavigationState extends State<MainNavigation> {
 
     final systemStream = supabase
         .from('system_messages')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId);
+        .stream(primaryKey: ['id']).eq('user_id', userId);
     final messagesStream = supabase
         .from('messages')
-        .stream(primaryKey: ['id'])
-        .eq('receiver_id', userId);
+        .stream(primaryKey: ['id']).eq('receiver_id', userId);
     final bookingStream = supabase
         .from('bookings')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId.toString());
+        .stream(primaryKey: ['id']).eq('user_id', userId.toString());
     final commentStream = supabase
         .from('notifications')
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId);
+        .stream(primaryKey: ['id']).eq('user_id', userId);
 
     final combinedStream = StreamGroup.merge([
       systemStream,
@@ -135,7 +167,6 @@ class _MainNavigationState extends State<MainNavigation> {
   // --- LOGIC PRESERVED: Condition checks ---
   Future<bool> _checkRedDotConditions(SupabaseClient supabase, dynamic userId) async {
     try {
-      // Ensure userId is in the correct format for your queries
       final queryUserId = userId;
 
       final systemMessages = await supabase
@@ -165,17 +196,12 @@ class _MainNavigationState extends State<MainNavigation> {
       final String currentTime = DateFormat('HH:mm:ss').format(now);
 
       bool hasNotification = bookings.any((b) {
-        // Condition A: Booking is TODAY (Reminder)
         bool isToday = b['booking_date'] == today;
         String bTime = b['booking_time'] ?? "00:00:00";
         if (bTime.length == 5) bTime += ":00";
         String status = (b['status'] ?? "").toLowerCase();
         bool isActive = status != "rejected" && status != "cancelled";
-        bool isReminder =
-            isToday && bTime.compareTo(currentTime) >= 0 && isActive;
-
-        // Condition B: Business updated the status and user hasn't seen it yet (New Notification)
-        // This is the NEW logic linked to your SQL trigger
+        bool isReminder = isToday && bTime.compareTo(currentTime) >= 0 && isActive;
         bool isNewUpdate = b['user_viewed'] == false;
 
         return isReminder || isNewUpdate;
@@ -190,7 +216,6 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
-  // --- LOGIC PRESERVED: Navigation handling ---
   void _onItemTapped(int index) async {
     if (index == 2) {
       final result = await Navigator.push(
@@ -213,7 +238,7 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
-      extendBody: true, // Crucial for content to show behind glass nav
+      extendBody: true,
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: _buildMidnightNavBar(),
     );
@@ -222,14 +247,11 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget _buildMidnightNavBar() {
     return ClipRRect(
       child: BackdropFilter(
-        // Increased blur to handle high-detail map background
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          // height: 90 accounts for the bottom safe area on modern phones
           height: 90,
           padding: const EdgeInsets.only(bottom: 15),
           decoration: BoxDecoration(
-            // Deeper midnight opacity for better icon contrast
             color: const Color(0xFF0F0C29).withOpacity(0.85),
             border: Border(
               top: BorderSide(color: Colors.white.withOpacity(0.1), width: 0.5),
@@ -261,14 +283,10 @@ class _MainNavigationState extends State<MainNavigation> {
           children: [
             Icon(
               icon,
-              // Brighter Cyan and White for higher visibility on light maps
-              color: isSelected
-                  ? Colors.cyanAccent
-                  : Colors.white.withOpacity(0.4),
+              color: isSelected ? Colors.cyanAccent : Colors.white.withOpacity(0.4),
               size: 26,
             ),
             const SizedBox(height: 4),
-            // Added a subtle dot indicator for selected state
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               height: 4,
@@ -284,7 +302,6 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  // Centered Add Button Item
   Widget _buildAddNavItem() {
     return Expanded(
       child: GestureDetector(
@@ -321,7 +338,6 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  // Centered Chat Item with Stream Logic
   Widget _buildChatNavItem(int index) {
     bool isSelected = _selectedIndex == index;
     return Expanded(

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class RegisterPage extends StatefulWidget {
   final bool initialIsBusiness;
@@ -27,6 +29,7 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _isLoading = false;
   late bool isBusiness;
   String errorText = "";
+  bool _obscurePassword = true;
 
   final List<String> businessTypes = ['Restaurant', 'Entertainment'];
 
@@ -36,49 +39,68 @@ class _RegisterPageState extends State<RegisterPage> {
     isBusiness = widget.initialIsBusiness;
   }
 
-  // --- Logic Preserved ---
   Future<void> _pickImage() async {
     final image = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (image != null) setState(() => _ssmFile = File(image.path));
   }
 
-  // --- Logic Preserved ---
-  Future<void> _register() async {
+  Future<void> _register(LanguageProvider lp) async {
     setState(() { _isLoading = true; errorText = ""; });
     try {
       if (passwordController.text != confirmPasswordController.text) {
-        throw "Passwords do not match";
+        throw lp.getString('pass_mismatch');
       }
 
+      final supabase = Supabase.instance.client;
+      final email = emailController.text.trim();
+
       if (isBusiness) {
-        // --- SSM Validation Start ---
+        final existingBiz = await supabase
+            .from('business_profiles')
+            .select('email')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (existingBiz != null) throw lp.getString('email_address') + " " + lp.getString('already_exists');
+
         String ssmValue = regNoController.text.trim();
         if (ssmValue.length != 12 || int.tryParse(ssmValue) == null) {
-          throw "SSM Number must be exactly 12 digits";
+          throw lp.getString('ssm_digit_error');
         }
-        // --- SSM Validation End ---
 
-        if (_ssmFile == null) throw "Please upload SSM photo";
+        if (_ssmFile == null) throw lp.getString('ssm_photo_error');
 
         final fileName = 'ssm_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        await Supabase.instance.client.storage.from('business_assets').upload(fileName, _ssmFile!);
-        final publicUrl = Supabase.instance.client.storage.from('business_assets').getPublicUrl(fileName);
+        await supabase.storage.from('business_assets').upload(fileName, _ssmFile!);
+        final publicUrl = supabase.storage.from('business_assets').getPublicUrl(fileName);
 
-        await Supabase.instance.client.from('business_profiles').insert({
+        await supabase.from('business_profiles').insert({
           'business_name': businessNameController.text.trim(),
-          'email': emailController.text.trim(),
+          'email': email,
           'password': passwordController.text.trim(),
-          'register_no': ssmValue, // Using the validated string
+          'register_no': ssmValue,
           'ssm_url': publicUrl,
           'business_type': _selectedType,
           'status': 'pending',
           'role': 'business',
         });
       } else {
-        await Supabase.instance.client.from('profiles').insert({
-          'username': usernameController.text.trim(),
+        final username = usernameController.text.trim();
+        final existingUser = await supabase
+            .from('profiles')
+            .select('email, username')
+            .or('email.eq.$email,username.eq.$username')
+            .maybeSingle();
+
+        if (existingUser != null) {
+          if (existingUser['email'] == email) throw lp.getString('email_address') + " " + lp.getString('already_exists');
+          if (existingUser['username'] == username) throw lp.getString('username') + " " + lp.getString('already_exists');
+        }
+
+        await supabase.from('profiles').insert({
+          'username': username,
           'name': fullNameController.text.trim(),
-          'email': emailController.text.trim(),
+          'email': email,
           'password': passwordController.text.trim(),
           'role': 'user',
         });
@@ -86,12 +108,16 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Registration Successful!"), backgroundColor: Colors.green)
+            SnackBar(content: Text(lp.getString('reg_success')), backgroundColor: Colors.green)
         );
         Navigator.pop(context);
       }
     } catch (e) {
-      setState(() => errorText = e.toString());
+      String displayError = e.toString();
+      if (displayError.contains("unique_violation")) {
+        displayError = lp.getString('already_exists');
+      }
+      setState(() => errorText = displayError);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -99,11 +125,12 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       body: Stack(
         children: [
-          // 1. CONTINUOUS BACKGROUND
           Container(
             width: double.infinity, height: double.infinity,
             decoration: const BoxDecoration(
@@ -114,22 +141,19 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
             ),
           ),
-
-          // 2. CONTENT
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
                 children: [
                   const SizedBox(height: 30),
-                  const Text("Create Account",
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.2)),
+                  Text(lp.getString('create_account'),
+                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.2)),
                   const SizedBox(height: 10),
-                  Text("Join our exclusive community",
+                  Text(lp.getString('join_community'),
                       style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.5))),
                   const SizedBox(height: 40),
 
-                  // User / Business Toggle Tab (Glassmorphism Style)
                   Container(
                     width: 300, height: 50,
                     padding: const EdgeInsets.all(4),
@@ -140,14 +164,13 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     child: Row(
                       children: [
-                        _buildTab("User", !isBusiness),
-                        _buildTab("Businesses", isBusiness),
+                        _buildTab(lp.getString('user_tab'), !isBusiness),
+                        _buildTab(lp.getString('business_tab'), isBusiness),
                       ],
                     ),
                   ),
                   const SizedBox(height: 30),
 
-                  // Glass Form Container
                   ClipRRect(
                     borderRadius: BorderRadius.circular(25),
                     child: BackdropFilter(
@@ -162,25 +185,24 @@ class _RegisterPageState extends State<RegisterPage> {
                         child: Column(
                           children: [
                             if (!isBusiness) ...[
-                              _input(usernameController, "Username", LucideIcons.user),
+                              _input(lp, usernameController, lp.getString('username'), LucideIcons.user),
                               const SizedBox(height: 16),
-                              _input(fullNameController, "Full Name", LucideIcons.contact),
+                              _input(lp, fullNameController, lp.getString('full_name'), LucideIcons.contact),
                               const SizedBox(height: 16),
                             ],
-                            _input(emailController, "Email", LucideIcons.mail),
+                            _input(lp, emailController, lp.getString('email_address'), LucideIcons.mail),
                             const SizedBox(height: 16),
-                            _input(passwordController, "Password", LucideIcons.lock, pass: true),
+                            _input(lp, passwordController, lp.getString('new_password'), LucideIcons.lock, pass: true),
                             const SizedBox(height: 16),
-                            _input(confirmPasswordController, "Confirm Password", LucideIcons.checkCircle, pass: true),
+                            _input(lp, confirmPasswordController, lp.getString('confirm_password'), LucideIcons.checkCircle, pass: true),
                             const SizedBox(height: 16),
 
                             if (isBusiness) ...[
-                              _input(businessNameController, "Business Name", LucideIcons.store),
+                              _input(lp, businessNameController, lp.getString('business_name'), LucideIcons.store),
                               const SizedBox(height: 16),
-                              _input(regNoController, "SSM No", LucideIcons.fileText),
+                              _input(lp, regNoController, lp.getString('ssm_no'), LucideIcons.fileText),
                               const SizedBox(height: 16),
 
-                              // Business Type Selection
                               DropdownButtonFormField<String>(
                                 value: _selectedType,
                                 dropdownColor: const Color(0xFF1A1A35),
@@ -205,12 +227,12 @@ class _RegisterPageState extends State<RegisterPage> {
                                       border: Border.all(color: Colors.white.withOpacity(0.1), style: BorderStyle.solid)
                                   ),
                                   child: _ssmFile == null
-                                      ? const Column(
+                                      ? Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(LucideIcons.imagePlus, color: Colors.cyanAccent),
-                                        SizedBox(height: 8),
-                                        Text("Upload SSM Photo", style: TextStyle(color: Colors.cyanAccent, fontSize: 12))
+                                        const Icon(LucideIcons.imagePlus, color: Colors.cyanAccent),
+                                        const SizedBox(height: 8),
+                                        Text(lp.getString('upload_ssm'), style: const TextStyle(color: Colors.cyanAccent, fontSize: 12))
                                       ])
                                       : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.file(_ssmFile!, fit: BoxFit.cover)),
                                 ),
@@ -223,14 +245,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
                             const SizedBox(height: 30),
 
-                            // Register Button
-                            // Consistent Gradient Button (Matches Login)
                             SizedBox(
                               width: double.infinity,
                               height: 55,
                               child: Container(
                                 decoration: BoxDecoration(
-                                  // EXACT same gradient colors as your login button
                                   gradient: const LinearGradient(
                                     colors: [Color(0xFF8ECAFF), Color(0xFF4A90E2), Colors.purpleAccent],
                                     begin: Alignment.centerLeft,
@@ -246,9 +265,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                   ],
                                 ),
                                 child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _register,
+                                  onPressed: _isLoading ? null : () => _register(lp),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.transparent, // Required to show the gradient
+                                    backgroundColor: Colors.transparent,
                                     shadowColor: Colors.transparent,
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                                   ),
@@ -258,9 +277,9 @@ class _RegisterPageState extends State<RegisterPage> {
                                       width: 20,
                                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                                   )
-                                      : const Text(
-                                    "REGISTER",
-                                    style: TextStyle(
+                                      : Text(
+                                    lp.getString('register_btn'),
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
@@ -281,10 +300,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       onPressed: () => Navigator.pop(context),
                       child: RichText(
                           text: TextSpan(
-                              text: "Already have an account? ",
+                              text: lp.getString('already_have_acc'),
                               style: TextStyle(color: Colors.white.withOpacity(0.6)),
-                              children: const [
-                                TextSpan(text: "Login", style: TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold))
+                              children: [
+                                TextSpan(text: lp.getString('login_link'), style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold))
                               ]
                           )
                       )
@@ -302,7 +321,7 @@ class _RegisterPageState extends State<RegisterPage> {
   Widget _buildTab(String label, bool active) {
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => isBusiness = (label == "Businesses")),
+        onTap: () => setState(() => isBusiness = (label == "Businesses" || label == "Perniagaan" || label == "商家用户")),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           decoration: BoxDecoration(
@@ -321,18 +340,35 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
-  Widget _input(TextEditingController controller, String hint, IconData icon, {bool pass = false}) {
+  Widget _input(LanguageProvider lp, TextEditingController controller, String hint, IconData icon, {bool pass = false}) {
     return TextField(
       controller: controller,
-      obscureText: pass,
+      obscureText: pass ? _obscurePassword : false,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
         prefixIcon: Icon(icon, color: Colors.cyanAccent, size: 20),
+        suffixIcon: pass
+            ? IconButton(
+          icon: Icon(
+            _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+            color: Colors.white54,
+            size: 20,
+          ),
+          onPressed: () {
+            setState(() {
+              _obscurePassword = !_obscurePassword;
+            });
+          },
+        )
+            : null,
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );

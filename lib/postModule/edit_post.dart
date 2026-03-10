@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class EditPostPage extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -58,10 +60,10 @@ class _EditPostPageState extends State<EditPostPage> {
     } catch (e) { debugPrint("Search error: $e"); }
   }
 
-  Future<void> _handleUpdate() async {
+  Future<void> _handleUpdate(LanguageProvider lp) async {
     FocusScope.of(context).unfocus();
     if (_titleController.text.isEmpty || _selectedLocationName == null || (_existingUrls.isEmpty && _newMedia.isEmpty)) {
-      _showSnackBar("Missing info: Title, Location, and Photos are required!", Colors.orange);
+      _showSnackBar(lp.getString('missing_info_error'), Colors.orange);
       return;
     }
 
@@ -72,14 +74,14 @@ class _EditPostPageState extends State<EditPostPage> {
       List<String> finalUrls = List.from(_existingUrls);
       final dynamic profileId = widget.post['profile_id'];
 
-      // 1. UPLOAD NEW MEDIA (This will now work with the RLS policy above)
+      // 1. UPLOAD NEW MEDIA
       for (var i = 0; i < _newMedia.length; i++) {
         final path = 'posts/$profileId/edit_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
         await supabase.storage.from('post_media').upload(path, _newMedia[i]);
         finalUrls.add(supabase.storage.from('post_media').getPublicUrl(path));
       }
 
-      // 2. NORMALIZE CATEGORIES (Fixes the issue in image_ce851c.png)
+      // 2. NORMALIZE CATEGORIES
       final normalizedCategories = _selectedCategories.map((cat) {
         String s = cat.trim();
         if (s.isEmpty) return s;
@@ -92,7 +94,7 @@ class _EditPostPageState extends State<EditPostPage> {
         'description': _descriptionController.text.trim(),
         'location_name': _selectedLocationName,
         'rating': _rating,
-        'category_names': normalizedCategories, // Use normalized list
+        'category_names': normalizedCategories,
         'media_urls': finalUrls,
         'profile_id': profileId,
       };
@@ -100,11 +102,11 @@ class _EditPostPageState extends State<EditPostPage> {
       await supabase.from('posts').update(updatedPost).eq('id', widget.post['id']);
 
       if (mounted) {
-        _showSnackBar("Post updated successfully!", Colors.green);
+        _showSnackBar(lp.getString('post_update_success'), Colors.green);
         Navigator.pop(context, updatedPost);
       }
     } catch (e) {
-      _showSnackBar("Update failed: ${e.toString()}", Colors.red);
+      _showSnackBar("${lp.getString('update_failed')}: ${e.toString()}", Colors.red);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -114,7 +116,160 @@ class _EditPostPageState extends State<EditPostPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: c));
   }
 
-  // --- UI HELPERS ---
+  @override
+  Widget build(BuildContext context) {
+    // Access the language provider
+    final lp = Provider.of<LanguageProvider>(context);
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        leading: IconButton(icon: const Icon(LucideIcons.chevronLeft, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        title: Text(lp.getString('edit_post'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Container(
+        width: double.infinity, height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
+          ),
+        ),
+        child: Stack(
+          children: [
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_existingUrls.isNotEmpty || _newMedia.isNotEmpty) _buildMediaStrip(),
+                    _buildMediaPicker(lp),
+                    const SizedBox(height: 30),
+                    _buildLabel(lp.getString('title')),
+                    _buildTextField(_titleController, lp.getString('title_hint')),
+                    const SizedBox(height: 20),
+                    _buildLabel(lp.getString('description')),
+                    _buildTextField(_descriptionController, lp.getString('desc_hint'), maxLines: 3),
+                    const SizedBox(height: 20),
+                    _buildLabel(lp.getString('location')),
+                    _buildLocationSearch(lp),
+                    const SizedBox(height: 20),
+                    _buildLabel(lp.getString('categories')),
+                    _buildCategoryChips(),
+                    const SizedBox(height: 20),
+                    _buildLabel(lp.getString('rating')),
+                    _buildStarRating(),
+                    const SizedBox(height: 40),
+                    _buildSubmitButton(lp),
+                  ],
+                ),
+              ),
+            ),
+            if (_isSaving)
+              Positioned.fill(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(color: Colors.black26, child: const Center(child: CircularProgressIndicator(color: Colors.blueAccent))),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- UI HELPERS WITH TRANSLATION ---
+
+  Widget _buildTextField(TextEditingController c, String h, {int maxLines = 1}) => ClipRRect(
+    borderRadius: BorderRadius.circular(15),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+      child: TextField(
+        controller: c,
+        maxLines: maxLines,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: h,
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.05),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
+        ),
+      ),
+    ),
+  );
+
+  Widget _buildLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 10, left: 5), child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white, letterSpacing: 0.5)));
+
+  Widget _buildMediaPicker(LanguageProvider lp) => GestureDetector(
+    onTap: () async {
+      final i = await ImagePicker().pickMultiImage();
+      if (i.isNotEmpty) setState(() { for (var x in i) { if (_newMedia.length + _existingUrls.length < 9) _newMedia.add(File(x.path)); } });
+    },
+    child: Container(
+      height: 60,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
+      ),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [const Icon(LucideIcons.image, color: Colors.blueAccent), const SizedBox(width: 10), Text(lp.getString('add_more_photos'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
+    ),
+  );
+
+  Widget _buildSubmitButton(LanguageProvider lp) => InkWell(
+    onTap: _isSaving ? null : () => _handleUpdate(lp),
+    child: Container(
+      width: double.infinity, height: 55,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent]),
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
+      ),
+      child: Center(child: Text(lp.getString('save_changes_btn'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+    ),
+  );
+
+  Widget _buildLocationSearch(LanguageProvider lp) => Column(
+    children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(15),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: TextField(
+            controller: _locationController,
+            onChanged: _searchLocations,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: lp.getString('loc_hint'),
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+              prefixIcon: const Icon(LucideIcons.mapPin, color: Colors.blueAccent),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.05),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
+            ),
+          ),
+        ),
+      ),
+      if (_locationResults.isNotEmpty && _selectedLocationName != _locationController.text)
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.95), borderRadius: BorderRadius.circular(15)),
+          child: Column(children: _locationResults.map((loc) => ListTile(
+            title: Text(loc['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text("${loc['area']} • ${loc['address']}", maxLines: 1),
+            onTap: () => setState(() { _selectedLocationName = loc['name']; _locationResults = []; _locationController.text = loc['name']; }),
+          )).toList()),
+        ),
+    ],
+  );
+
   Widget _buildMediaStrip() {
     final List<dynamic> combinedMedia = [..._existingUrls, ..._newMedia];
 
@@ -188,107 +343,6 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        leading: IconButton(icon: const Icon(LucideIcons.chevronLeft, color: Colors.white), onPressed: () => Navigator.pop(context)),
-        title: const Text("Edit Post", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Container(
-        width: double.infinity, height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
-          ),
-        ),
-        child: Stack(
-          children: [
-            SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_existingUrls.isNotEmpty || _newMedia.isNotEmpty) _buildMediaStrip(),
-                    _buildMediaPicker(),
-                    const SizedBox(height: 30),
-                    _buildLabel("Title"),
-                    _buildTextField(_titleController, "Give it a name..."),
-                    const SizedBox(height: 20),
-                    _buildLabel("Description"),
-                    _buildTextField(_descriptionController, "Change your thoughts...", maxLines: 3),
-                    const SizedBox(height: 20),
-                    _buildLabel("Location"),
-                    _buildLocationSearch(),
-                    const SizedBox(height: 20),
-                    _buildLabel("Categories"),
-                    _buildCategoryChips(),
-                    const SizedBox(height: 20),
-                    _buildLabel("Rating"),
-                    _buildStarRating(),
-                    const SizedBox(height: 40),
-                    _buildSubmitButton(),
-                  ],
-                ),
-              ),
-            ),
-            if (_isSaving)
-              Positioned.fill(
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(color: Colors.black26, child: const Center(child: CircularProgressIndicator(color: Colors.blueAccent))),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController c, String h, {int maxLines = 1}) => ClipRRect(
-    borderRadius: BorderRadius.circular(15),
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-      child: TextField(
-        controller: c,
-        maxLines: maxLines,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: h,
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-          filled: true,
-          fillColor: Colors.white.withOpacity(0.05),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
-        ),
-      ),
-    ),
-  );
-
-  Widget _buildLabel(String t) => Padding(padding: const EdgeInsets.only(bottom: 10, left: 5), child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white, letterSpacing: 0.5)));
-
-  Widget _buildMediaPicker() => GestureDetector(
-    onTap: () async {
-      final i = await ImagePicker().pickMultiImage();
-      if (i.isNotEmpty) setState(() { for (var x in i) { if (_newMedia.length + _existingUrls.length < 9) _newMedia.add(File(x.path)); } });
-    },
-    child: Container(
-      height: 60,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
-      ),
-      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(LucideIcons.image, color: Colors.blueAccent), SizedBox(width: 10), Text("Add More Photos", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))]),
-    ),
-  );
-
   Widget _buildCategoryChips() => Wrap(
     spacing: 8,
     runSpacing: 8,
@@ -320,57 +374,9 @@ class _EditPostPageState extends State<EditPostPage> {
       )),
     ),
   );
-
-  Widget _buildSubmitButton() => InkWell(
-    onTap: _isSaving ? null : _handleUpdate,
-    child: Container(
-      width: double.infinity, height: 55,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent]),
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [BoxShadow(color: Colors.blueAccent.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
-      ),
-      child: const Center(child: Text("SAVE CHANGES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
-    ),
-  );
-
-  Widget _buildLocationSearch() => Column(
-    children: [
-      ClipRRect(
-        borderRadius: BorderRadius.circular(15),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-          child: TextField(
-            controller: _locationController,
-            onChanged: _searchLocations,
-            style: const TextStyle(color: Colors.white),
-            decoration: InputDecoration(
-              hintText: _selectedLocationName ?? "Search location...",
-              hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-              prefixIcon: const Icon(LucideIcons.mapPin, color: Colors.blueAccent),
-              filled: true,
-              fillColor: Colors.white.withOpacity(0.05),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
-            ),
-          ),
-        ),
-      ),
-      if (_locationResults.isNotEmpty && _selectedLocationName != _locationController.text)
-        Container(
-          margin: const EdgeInsets.only(top: 8),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.95), borderRadius: BorderRadius.circular(15)),
-          child: Column(children: _locationResults.map((loc) => ListTile(
-            title: Text(loc['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("${loc['area']} • ${loc['address']}", maxLines: 1),
-            onTap: () => setState(() { _selectedLocationName = loc['name']; _locationResults = []; _locationController.text = loc['name']; }),
-          )).toList()),
-        ),
-    ],
-  );
 }
 
-// Full-screen viewer kept but styled dark to match
+// Full-screen viewer (logic unchanged)
 class EditGalleryViewer extends StatefulWidget {
   final List<String> existingUrls;
   final List<File> newMedia;

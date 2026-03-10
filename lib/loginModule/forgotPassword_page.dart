@@ -3,7 +3,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'updatePassword_page.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -38,8 +40,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  // --- Logic Preserved ---
-  Future<void> _sendResetLink() async {
+  // --- Logic Preserved (Updated with Translations) ---
+  Future<void> _sendResetLink(LanguageProvider lp) async {
     final email = _emailController.text.trim();
     if (email.isEmpty) return;
 
@@ -52,7 +54,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Reset link sent! Check your email."), backgroundColor: Colors.green),
+          SnackBar(content: Text(lp.getString('reset_link_sent')), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -68,6 +70,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       body: Stack(
@@ -103,13 +107,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       child: const Icon(LucideIcons.unlock, size: 80, color: Color(0xFF8ECAFF)),
                     ),
                     const SizedBox(height: 30),
-                    const Text(
-                        "Reset Password",
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)
+                    Text(
+                        lp.getString('reset_password_title'), // TRANSLATED
+                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)
                     ),
                     const SizedBox(height: 12),
                     Text(
-                        "Enter your email to receive a recovery link.",
+                        lp.getString('recovery_desc'), // TRANSLATED
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 15)
                     ),
@@ -133,7 +137,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 controller: _emailController,
                                 style: const TextStyle(color: Colors.white),
                                 decoration: InputDecoration(
-                                  labelText: "Registered Email",
+                                  labelText: lp.getString('registered_email'), // TRANSLATED
                                   labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                                   prefixIcon: const Icon(LucideIcons.mail, color: Color(0xFF8ECAFF), size: 20),
                                   filled: true,
@@ -163,7 +167,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                     ],
                                   ),
                                   child: ElevatedButton(
-                                    onPressed: _isLoading ? null : _sendResetLink,
+                                    onPressed: _isLoading ? null : () => _sendResetLink(lp),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       shadowColor: Colors.transparent,
@@ -171,9 +175,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                     ),
                                     child: _isLoading
                                         ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                        : const Text(
-                                        "SEND RECOVERY EMAIL",
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)
+                                        : Text(
+                                        lp.getString('send_recovery_btn'), // TRANSLATED
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)
                                     ),
                                   ),
                                 ),
@@ -186,9 +190,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     const SizedBox(height: 25),
                     TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text(
-                            "Back to Login",
-                            style: TextStyle(color: Color(0xFF8ECAFF), fontWeight: FontWeight.w600)
+                        child: Text(
+                            lp.getString('back_to_login'), // TRANSLATED
+                            style: const TextStyle(color: Color(0xFF8ECAFF), fontWeight: FontWeight.w600)
                         )
                     ),
                   ],

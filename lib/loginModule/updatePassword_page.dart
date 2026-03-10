@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class UpdatePasswordPage extends StatefulWidget {
   const UpdatePasswordPage({super.key});
@@ -15,17 +17,17 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
 
-  // --- LOGIC PRESERVED EXACTLY ---
-  Future<void> _updatePassword() async {
+  // --- LOGIC PRESERVED EXACTLY (Updated with Translations) ---
+  Future<void> _updatePassword(LanguageProvider lp) async {
     final password = _passwordController.text.trim();
     final confirm = _confirmPasswordController.text.trim();
 
     if (password.length < 8) {
-      _showSnackBar("Password must be at least 8 characters", Colors.orangeAccent);
+      _showSnackBar(lp.getString('password_length_error'), Colors.orangeAccent);
       return;
     }
     if (password != confirm) {
-      _showSnackBar("Passwords do not match", Colors.redAccent);
+      _showSnackBar(lp.getString('password_mismatch'), Colors.redAccent);
       return;
     }
 
@@ -49,13 +51,13 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
             .eq('email', user!.email!);
       }
 
-      _showSnackBar("Password updated successfully!", Colors.greenAccent);
+      _showSnackBar(lp.getString('password_success'), Colors.greenAccent);
 
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
-      _showSnackBar("Update failed: ${e.toString()}", Colors.redAccent);
+      _showSnackBar("${lp.getString('update_failed')}: ${e.toString()}", Colors.redAccent);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -69,6 +71,8 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       body: Stack(
@@ -104,13 +108,13 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
                       child: const Icon(LucideIcons.shieldCheck, size: 70, color: Color(0xFF8ECAFF)),
                     ),
                     const SizedBox(height: 25),
-                    const Text(
-                        "Set New Password",
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)
+                    Text(
+                        lp.getString('set_new_password'), // TRANSLATED
+                        style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.1)
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      "Ensure your account stays secure",
+                      lp.getString('stay_secure_desc'), // TRANSLATED
                       style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
                     ),
                     const SizedBox(height: 40),
@@ -129,9 +133,9 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
                           ),
                           child: Column(
                             children: [
-                              _buildField("New Password", LucideIcons.lock, _passwordController),
+                              _buildField(lp.getString('new_password'), LucideIcons.lock, _passwordController),
                               const SizedBox(height: 15),
-                              _buildField("Confirm Password", LucideIcons.checkCircle, _confirmPasswordController),
+                              _buildField(lp.getString('confirm_password'), LucideIcons.checkCircle, _confirmPasswordController),
                               const SizedBox(height: 30),
 
                               // CONSISTENT BUTTON (Matches Login/Register)
@@ -153,7 +157,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
                                     ],
                                   ),
                                   child: ElevatedButton(
-                                    onPressed: _isLoading ? null : _updatePassword,
+                                    onPressed: _isLoading ? null : () => _updatePassword(lp),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.transparent,
                                       shadowColor: Colors.transparent,
@@ -161,9 +165,9 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
                                     ),
                                     child: _isLoading
                                         ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                        : const Text(
-                                        "UPDATE PASSWORD",
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                                        : Text(
+                                        lp.getString('update_password_btn'), // TRANSLATED
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
                                     ),
                                   ),
                                 ),

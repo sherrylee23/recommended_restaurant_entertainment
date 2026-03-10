@@ -6,8 +6,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'dart:convert';
 import 'favorite_location.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class MapDiscoveryPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -18,7 +20,6 @@ class MapDiscoveryPage extends StatefulWidget {
 }
 
 class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
-  // --- ALL LOGIC & CONTROLLERS PRESERVED ---
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
 
@@ -32,7 +33,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
     _initLocation();
   }
 
-  // --- LOGIC FUNCTIONS (UNTOUCHED) ---
+  // --- LOGIC FUNCTIONS ---
 
   Future<void> _initLocation() async {
     try {
@@ -59,7 +60,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
     }
   }
 
-  Future<void> _searchLocation(String query) async {
+  Future<void> _searchLocation(String query, LanguageProvider lp) async {
     if (query.isEmpty) return;
     setState(() => _isLoading = true);
     final url = 'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}+Malaysia&format=json&limit=1';
@@ -71,13 +72,14 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
         _mapController.move(newPos, 16.0);
         _fetchNearbySuggestions(newPos);
       } else {
-        _showSnackBar("Location not found", Colors.orange);
+        _showSnackBar(lp.getString('loc_not_found'), Colors.orange);
       }
     } catch (e) { debugPrint("Search error: $e"); }
     finally { if (mounted) setState(() => _isLoading = false); }
   }
 
   Future<void> _fetchNearbySuggestions(LatLng location) async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     final query = """
     [out:json][timeout:30];
@@ -101,7 +103,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
           markers.add(
             Marker(
               point: LatLng(element['lat'], element['lon']),
-              width: 45, // Slightly smaller for better de-cluttering
+              width: 45,
               height: 45,
               child: GestureDetector(
                 onTap: () => _showPlaceDetail(name, type, element['lat'], element['lon']),
@@ -115,7 +117,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
     } catch (e) { if (mounted) setState(() => _isLoading = false); }
   }
 
-  Future<void> _saveToFavorites(String name, String category, double lat, double lon) async {
+  Future<void> _saveToFavorites(String name, String category, double lat, double lon, LanguageProvider lp) async {
     final supabase = Supabase.instance.client;
     try {
       await supabase.from('favorite_places').insert({
@@ -125,7 +127,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
         'latitude': lat,
         'longitude': lon,
       });
-      _showSnackBar("Saved $name to favorites!", Colors.green);
+      _showSnackBar(lp.getString('saved_to_fav').replaceFirst('{}', name), Colors.green);
     } catch (e) { debugPrint("Save error: $e"); }
   }
 
@@ -135,9 +137,10 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
-      // APP BAR: Styled as a Midnight Glass floating header
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -148,8 +151,8 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              color: const Color(0xFF0F0C29).withOpacity(0.7), // Midnight background
-              child: const Text("Discovery Map", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+              color: const Color(0xFF0F0C29).withOpacity(0.7),
+              child: Text(lp.getString('discovery_map'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
             ),
           ),
         ),
@@ -179,7 +182,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
       body: Stack(
         children: [
           _buildMap(),
-          _buildTopSearch(),
+          _buildTopSearch(lp),
           _buildRecenterButton(),
           if (_isLoading) _buildLoadingBlur(),
         ],
@@ -196,7 +199,6 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
       ),
       children: [
         TileLayer(
-          // Light All Tiles (Bright canvas)
           urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
           userAgentPackageName: 'com.example.malaysia_discovery',
         ),
@@ -226,7 +228,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
             border: Border.all(color: Colors.blueAccent.withOpacity(0.5), width: 2),
           ),
         ),
-        const Icon(LucideIcons.mapPin, color: Color(0xFF0F0C29), size: 30), // Dark pin for light map
+        const Icon(LucideIcons.mapPin, color: Color(0xFF0F0C29), size: 30),
       ],
     );
   }
@@ -248,7 +250,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F0C29), // SOLID Midnight background (Contrast King)
+        color: const Color(0xFF0F0C29),
         shape: BoxShape.circle,
         border: Border.all(color: accentColor.withOpacity(0.8), width: 2),
         boxShadow: [
@@ -263,7 +265,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
     );
   }
 
-  Widget _buildTopSearch() {
+  Widget _buildTopSearch(LanguageProvider lp) {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 80,
       left: 20, right: 20,
@@ -273,7 +275,6 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
           filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 15),
-            // The search bar uses the deep midnight glass style
             decoration: BoxDecoration(
               color: const Color(0xFF0F0C29).withOpacity(0.85),
               borderRadius: BorderRadius.circular(20),
@@ -283,9 +284,9 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
             child: TextField(
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
-              onSubmitted: _searchLocation,
+              onSubmitted: (query) => _searchLocation(query, lp),
               decoration: InputDecoration(
-                hintText: "Search Malaysia...",
+                hintText: lp.getString('search_malaysia'), // TRANSLATED
                 hintStyle: const TextStyle(color: Colors.white38),
                 prefixIcon: const Icon(LucideIcons.search, color: Colors.cyanAccent, size: 20),
                 suffixIcon: IconButton(
@@ -314,7 +315,6 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
           width: 55, height: 55,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            // Gradient matches your login buttons
             gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]),
             boxShadow: [
               BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))
@@ -339,6 +339,8 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
   }
 
   void _showPlaceDetail(String name, String type, double lat, double lon) {
+    final lp = Provider.of<LanguageProvider>(context, listen: false);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -347,7 +349,6 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            // Midnight Glassmorphism container
             color: const Color(0xFF0F0C29).withOpacity(0.95),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
             border: Border.all(color: Colors.white.withOpacity(0.1)),
@@ -366,7 +367,8 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
                       children: [
                         Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22)),
                         const SizedBox(height: 4),
-                        Text(type.toUpperCase().replaceAll('_', ' '), style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                        // TYPE TRANSLATED FROM L10N
+                        Text(lp.getString(type).toUpperCase(), style: const TextStyle(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                       ],
                     ),
                   ),
@@ -374,7 +376,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
                     icon: const Icon(LucideIcons.heart, color: Colors.pinkAccent, size: 28),
                     onPressed: () {
                       Navigator.pop(context);
-                      _saveToFavorites(name, type, lat, lon);
+                      _saveToFavorites(name, type, lat, lon, lp);
                     },
                   ),
                 ],
@@ -389,7 +391,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
                 child: ElevatedButton.icon(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(LucideIcons.map, color: Color(0xFF0F0C29)),
-                  label: const Text("CLOSE DETAIL", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold)),
+                  label: Text(lp.getString('close_detail'), style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
@@ -404,7 +406,4 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
       ),
     );
   }
-
-
 }
-

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'package:recommended_restaurant_entertainment/postModule/post_detail.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class CommentNotificationPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -33,16 +35,20 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
     final String? userId = widget.userData['id']?.toString();
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text("Comments", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(
+          lp.getString('comments_title'), // TRANSLATED
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: true,
         leading: IconButton(
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -61,25 +67,25 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
           color: Colors.blueAccent,
           backgroundColor: const Color(0xFF16162E),
           child: userId == null
-              ? _buildErrorState("User session invalid.")
-              : _buildNotificationStream(userId),
+              ? _buildErrorState(lp.getString('user_session_invalid')) // TRANSLATED
+              : _buildNotificationStream(userId, lp),
         ),
       ),
     );
   }
 
-  Widget _buildNotificationStream(String userId) {
+  Widget _buildNotificationStream(String userId, LanguageProvider lp) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       key: _refreshKey,
       stream: _supabase.from('notifications').stream(primaryKey: ['id']).eq('user_id', userId),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return _buildErrorState("Error loading: ${snapshot.error}");
+        if (snapshot.hasError) return _buildErrorState("Error: ${snapshot.error}");
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
         }
 
         final notifications = snapshot.data ?? [];
-        if (notifications.isEmpty) return _buildEmptyState();
+        if (notifications.isEmpty) return _buildEmptyState(lp);
 
         // Sort newest first
         final sortedList = List<Map<String, dynamic>>.from(notifications);
@@ -125,7 +131,7 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
                         ),
                       ),
                       title: Text(
-                        item['content'] ?? "New comment on your post",
+                        item['content'] ?? lp.getString('new_comment_notif'), // TRANSLATED FALLBACK
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -151,7 +157,7 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
                         ),
                       )
                           : null,
-                      onTap: () => _handleNotificationTap(item, userId),
+                      onTap: () => _handleNotificationTap(item, userId, lp),
                     ),
                   ),
                 ),
@@ -165,17 +171,17 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
 
   // --- UI HELPER WIDGETS ---
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(LanguageProvider lp) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.25),
         Icon(LucideIcons.messageCircle, size: 60, color: Colors.white.withOpacity(0.1)),
         const SizedBox(height: 20),
-        const Center(
+        Center(
           child: Text(
-            "No new comments yet.",
-            style: TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.w500),
+            lp.getString('no_comments_yet'), // TRANSLATED
+            style: const TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.w500),
           ),
         ),
       ],
@@ -187,7 +193,7 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
   }
 
   // --- TAP LOGIC (PRESERVED) ---
-  Future<void> _handleNotificationTap(Map<String, dynamic> item, String userId) async {
+  Future<void> _handleNotificationTap(Map<String, dynamic> item, String userId, LanguageProvider lp) async {
     try {
       await _supabase.from('notifications').update({'is_read': true}).eq('id', item['id']);
       if (item['related_post_id'] == null) return;
@@ -199,7 +205,7 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
           .maybeSingle();
 
       if (postData == null) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Post is no longer available."), behavior: SnackBarBehavior.floating));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(lp.getString('post_unavailable')), behavior: SnackBarBehavior.floating));
         return;
       }
 

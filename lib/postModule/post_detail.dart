@@ -1,10 +1,13 @@
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'package:recommended_restaurant_entertainment/postModule/edit_post.dart';
 import 'package:recommended_restaurant_entertainment/reportModule/report.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
+import 'package:recommended_restaurant_entertainment/searchModule/search_result.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class PostDetailPage extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -50,7 +53,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     super.dispose();
   }
 
-  // Helper for the main post date
   String _formatDate(String? timestamp) {
     if (timestamp == null) return "";
     try {
@@ -61,7 +63,6 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  // --- NEW: Helper for individual comments (Time Ago format) ---
   String _formatCommentDate(dynamic timestamp) {
     if (timestamp == null) return "";
     try {
@@ -85,7 +86,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Future<void> _submitComment() async {
+  Future<void> _submitComment(LanguageProvider lp) async {
     final text = _commentController.text.trim();
     if (text.isEmpty || widget.viewerProfileId == null) return;
 
@@ -129,9 +130,10 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
         if (response.count >= limit) {
           if (mounted) {
+            String translatedMsg = lp.getString('comment_limit_msg').replaceFirst('{}', limit.toString());
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text("Limit reached! $statusLabel can only comment $limit times per day."),
+                content: Text("${lp.getString('limit_reached')} $statusLabel $translatedMsg"),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -168,19 +170,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Future<void> _recordViewForAI() async {
     if (widget.viewerProfileId == null) return;
+    final supabase = Supabase.instance.client;
+
     final List<dynamic> categories = _currentPost['category_names'] ?? [];
     final normalizedCategories = categories.map((c) {
       String s = c.toString().trim();
       if (s.isEmpty) return s;
       return s[0].toUpperCase() + s.substring(1).toLowerCase();
     }).toList();
+
     try {
-      await Supabase.instance.client.rpc('increment_interest_counts', params: {
+      await supabase.from('browsing_history').upsert({
+        'user_id': widget.viewerProfileId,
+        'post_id': _currentPost['id'],
+        'viewed_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'user_id, post_id');
+
+      await supabase.rpc('increment_interest_counts', params: {
         'p_user_id': widget.viewerProfileId,
         'categories': normalizedCategories,
       });
     } catch (e) {
-      debugPrint("AI Record Error: $e");
+      debugPrint("History/AI Record Error: $e");
     }
   }
 
@@ -208,6 +219,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     try {
       final postId = _currentPost['id'];
       final countRes = await Supabase.instance.client.from('likes').select('*').eq('post_id', postId).count(CountOption.exact);
+
       bool userHasLiked = false;
       if (widget.viewerProfileId != null) {
         final existingLike = await Supabase.instance.client.from('likes').select().eq('post_id', postId).eq('profile_id', widget.viewerProfileId).maybeSingle();
@@ -243,26 +255,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  Future<void> _deletePost() async {
+  Future<void> _deletePost(LanguageProvider lp) async {
     try {
       final supabase = Supabase.instance.client;
       final postId = _currentPost['id'];
 
-      // 1. Delete all likes associated with this post
       await supabase.from('likes').delete().eq('post_id', postId);
-
-      // 2. Delete all comments associated with this post
       await supabase.from('comments').delete().eq('post_id', postId);
-
-      // 3. Delete notifications related to this post
       await supabase.from('notifications').delete().eq('related_post_id', postId);
-
-      // 4. Finally, delete the post
       await supabase.from('posts').delete().eq('id', postId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Post and associated data deleted"), backgroundColor: Colors.green)
+            SnackBar(content: Text(lp.getString('post_deleted_success')), backgroundColor: Colors.green)
         );
         Navigator.pop(context, true);
       }
@@ -275,15 +280,16 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
-  void _showDeleteConfirmation() {
+  void _showDeleteConfirmation(LanguageProvider lp) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Delete Post"),
-        content: const Text("Are you sure you want to permanently remove this post?"),
+        backgroundColor: const Color(0xFF1A1A35),
+        title: Text(lp.getString('delete_post_confirm_title'), style: const TextStyle(color: Colors.white)),
+        content: Text(lp.getString('delete_post_confirm_msg'), style: const TextStyle(color: Colors.white70)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          TextButton(onPressed: () { Navigator.pop(context); _deletePost(); }, child: const Text("Delete", style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(lp.getString('cancel'))),
+          TextButton(onPressed: () { Navigator.pop(context); _deletePost(lp); }, child: Text(lp.getString('delete'), style: const TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -303,6 +309,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
     final dynamic postOwnerId = _currentPost['profile_id'];
     final bool isOwner = widget.viewerProfileId != null && postOwnerId != null && widget.viewerProfileId.toString() == postOwnerId.toString();
     final List<dynamic> mediaUrls = _currentPost['media_urls'] ?? [];
@@ -313,22 +320,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
-      appBar: _buildGlassAppBar(isOwner, authorPicture),
+      appBar: _buildGlassAppBar(isOwner, authorPicture, lp),
       body: SingleChildScrollView(
         child: Column(
           children: [
             _buildMediaHeader(mediaUrls),
-            _buildContentBody(categories, rating),
-            _buildCommentList(),
+            _buildContentBody(categories, rating, lp),
+            _buildCommentList(lp),
             const SizedBox(height: 120),
           ],
         ),
       ),
-      bottomSheet: _buildCommentInput(),
+      bottomSheet: _buildCommentInput(lp),
     );
   }
 
-  PreferredSizeWidget _buildGlassAppBar(bool isOwner, String? authorPicture) {
+  PreferredSizeWidget _buildGlassAppBar(bool isOwner, String? authorPicture, LanguageProvider lp) {
     return AppBar(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -382,20 +389,22 @@ class _PostDetailPageState extends State<PostDetailPage> {
       ),
       actions: [
         if (!isOwner) _buildCircularAction(
+            lp: lp,
             icon: LucideIcons.flag,
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportPage(post: _currentPost, viewerProfileId: widget.viewerProfileId)))
         ),
         if (isOwner) _buildCircularAction(
+          lp: lp,
           icon: LucideIcons.moreVertical,
           isPopup: true,
-          onSelected: (val) => val == 'edit' ? _navigateToEdit() : _showDeleteConfirmation(),
+          onSelected: (val) => val == 'edit' ? _navigateToEdit() : _showDeleteConfirmation(lp),
         ),
         const SizedBox(width: 12),
       ],
     );
   }
 
-  Widget _buildCircularAction({required IconData icon, VoidCallback? onPressed, Function(String)? onSelected, bool isPopup = false}) {
+  Widget _buildCircularAction({required LanguageProvider lp, required IconData icon, VoidCallback? onPressed, Function(String)? onSelected, bool isPopup = false}) {
     final decoration = BoxDecoration(shape: BoxShape.circle, color: Colors.black.withOpacity(0.3));
 
     if (isPopup) {
@@ -405,8 +414,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
         icon: Container(padding: const EdgeInsets.all(8), decoration: decoration, child: Icon(icon, color: Colors.white, size: 20)),
         onSelected: onSelected,
         itemBuilder: (ctx) => [
-          const PopupMenuItem(value: 'edit', child: Row(children: [Icon(LucideIcons.edit, color: Colors.cyanAccent, size: 18), SizedBox(width: 10), Text("Edit Post", style: TextStyle(color: Colors.white))])),
-          const PopupMenuItem(value: 'delete', child: Row(children: [Icon(LucideIcons.trash2, color: Colors.redAccent, size: 18), SizedBox(width: 10), Text("Delete Post", style: TextStyle(color: Colors.redAccent))])),
+          PopupMenuItem(value: 'edit', child: Row(children: [const Icon(LucideIcons.edit, color: Colors.cyanAccent, size: 18), const SizedBox(width: 10), Text(lp.getString('edit_post_menu'), style: const TextStyle(color: Colors.white))])),
+          PopupMenuItem(value: 'delete', child: Row(children: [const Icon(LucideIcons.trash2, color: Colors.redAccent, size: 18), const SizedBox(width: 10), Text(lp.getString('delete_post_menu'), style: const TextStyle(color: Colors.redAccent))])),
         ],
       );
     }
@@ -446,7 +455,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _buildContentBody(List<dynamic> categories, int rating) {
+  Widget _buildContentBody(List<dynamic> categories, int rating, LanguageProvider lp) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -480,10 +489,30 @@ class _PostDetailPageState extends State<PostDetailPage> {
           if (categories.isNotEmpty)
             Wrap(
               spacing: 8, runSpacing: 8,
-              children: categories.map((cat) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blueAccent.withOpacity(0.2))),
-                child: Text(cat.toString(), style: const TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+              children: categories.map((cat) => GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SearchResultsPage(
+                        query: cat.toString(),
+                        currentUserData: {'id': widget.viewerProfileId},
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                      color: Colors.blueAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blueAccent.withOpacity(0.2))
+                  ),
+                  child: Text(
+                      cat.toString(),
+                      style: const TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold)
+                  ),
+                ),
               )).toList(),
             ),
           const SizedBox(height: 20),
@@ -494,13 +523,13 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _buildCommentList() {
+  Widget _buildCommentList(LanguageProvider lp) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Comments", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+          Text(lp.getString('comments'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
           const SizedBox(height: 20),
           _isLoadingComments
               ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
@@ -553,7 +582,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
     );
   }
 
-  Widget _buildCommentInput() {
+  Widget _buildCommentInput(LanguageProvider lp) {
     return Container(
       color: const Color(0xFF0F0C29),
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 20, left: 20, right: 20, top: 10),
@@ -568,7 +597,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                   controller: _commentController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: "Add a comment...",
+                    hintText: lp.getString('add_comment'), // TRANSLATED
                     hintStyle: const TextStyle(color: Colors.white30),
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.05),
@@ -581,7 +610,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
           ),
           const SizedBox(width: 12),
           GestureDetector(
-            onTap: _submitComment,
+            onTap: () => _submitComment(lp), // Pass lp to handle snackbar translation
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent])),

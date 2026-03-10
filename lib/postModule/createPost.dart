@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class CreatePostPage extends StatefulWidget {
   final String profileUserId;
@@ -110,13 +112,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
     }
   }
 
-  Future<void> _handlePostSubmission() async {
+  Future<void> _handlePostSubmission(LanguageProvider lp) async {
     FocusScope.of(context).unfocus();
     if (!_isFormValid()) return;
     final supabase = Supabase.instance.client;
     final int? currentProfileId = int.tryParse(widget.profileUserId);
     if (currentProfileId == null) {
-      _showSnackBar("Error: Invalid Profile ID. Please re-login.", Colors.red);
+      _showSnackBar(lp.getString('invalid_profile_error'), Colors.red);
       return;
     }
     setState(() => _isUploading = true);
@@ -139,7 +141,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
         'media_urls': mediaUrls,
       });
       if (mounted) {
-        _showSnackBar("Post shared successfully!", Colors.green);
+        _showSnackBar(lp.getString('post_success'), Colors.green);
         Navigator.pop(context, true);
       }
     } catch (e) {
@@ -160,10 +162,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
     );
   }
 
-  // --- REDESIGNED UI COMPONENTS ---
-
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
     final int currentWordCount = _getWordCount(_titleController.text);
     final bool canSubmit = _isFormValid();
 
@@ -177,9 +178,9 @@ class _CreatePostPageState extends State<CreatePostPage> {
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "New Discovery",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        title: Text(
+          lp.getString('new_discovery'), // TRANSLATED
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: true,
       ),
@@ -204,18 +205,17 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_userName != null) _buildUserBadge(),
                     if (_selectedMedia.isNotEmpty) _buildMediaStrip(),
-                    _buildMediaPicker(),
+                    _buildMediaPicker(lp),
                     const SizedBox(height: 30),
 
                     // --- TITLE ---
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildLabel("Title *"),
+                        _buildLabel(lp.getString('title') + " *"), // TRANSLATED
                         Text(
-                          "$currentWordCount/5 words",
+                          "$currentWordCount/5 ${lp.getString('words')}", // TRANSLATED
                           style: TextStyle(
                             fontSize: 12,
                             color: currentWordCount > 5
@@ -228,36 +228,36 @@ class _CreatePostPageState extends State<CreatePostPage> {
                     ),
                     _buildGlassTextField(
                       _titleController,
-                      "Catchy title...",
+                      lp.getString('catchy_title'), // TRANSLATED
                       formatters: [
                         TextInputFormatter.withFunction(
-                          (old, val) => _getWordCount(val.text) > 5 ? old : val,
+                              (old, val) => _getWordCount(val.text) > 5 ? old : val,
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
 
-                    _buildLabel("Description"),
+                    _buildLabel(lp.getString('description')), // TRANSLATED
                     _buildGlassTextField(
                       _descriptionController,
-                      "Tell us more about the vibe...",
+                      lp.getString('vibe_hint'), // TRANSLATED
                       maxLines: 3,
                     ),
                     const SizedBox(height: 20),
 
-                    _buildLabel("Location *"),
-                    _buildLocationSearch(),
+                    _buildLabel(lp.getString('location') + " *"), // TRANSLATED
+                    _buildLocationSearch(lp),
                     const SizedBox(height: 20),
 
-                    _buildLabel("Categories *"),
+                    _buildLabel(lp.getString('categories') + " *"), // TRANSLATED
                     _buildCategoryChips(),
                     const SizedBox(height: 20),
 
-                    _buildLabel("Rating *"),
+                    _buildLabel(lp.getString('rating') + " *"), // TRANSLATED
                     _buildStarRating(),
                     const SizedBox(height: 40),
 
-                    _buildSubmitButton(canSubmit),
+                    _buildSubmitButton(canSubmit, lp),
                   ],
                 ),
               ),
@@ -269,32 +269,13 @@ class _CreatePostPageState extends State<CreatePostPage> {
     );
   }
 
-  Widget _buildUserBadge() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.blueAccent.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
-      ),
-      child: Text(
-        "Posting as: $_userName",
-        style: const TextStyle(
-          color: Colors.blueAccent,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
 
   Widget _buildGlassTextField(
-    TextEditingController controller,
-    String hint, {
-    int maxLines = 1,
-    List<TextInputFormatter>? formatters,
-  }) {
+      TextEditingController controller,
+      String hint, {
+        int maxLines = 1,
+        List<TextInputFormatter>? formatters,
+      }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(15),
       child: BackdropFilter(
@@ -323,7 +304,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     );
   }
 
-  Widget _buildLocationSearch() => Column(
+  Widget _buildLocationSearch(LanguageProvider lp) => Column(
     children: [
       ClipRRect(
         borderRadius: BorderRadius.circular(15),
@@ -334,7 +315,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
             onChanged: _searchLocations,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              hintText: _selectedLocationName ?? "Search KL/Selangor...",
+              hintText: _selectedLocationName ?? lp.getString('search_kl'), // TRANSLATED
               prefixIcon: const Icon(
                 LucideIcons.mapPin,
                 color: Colors.blueAccent,
@@ -350,19 +331,18 @@ class _CreatePostPageState extends State<CreatePostPage> {
                 borderRadius: BorderRadius.circular(15),
                 borderSide: const BorderSide(color: Colors.blueAccent),
               ),
-              // Added a clear button if a location is selected
               suffixIcon: _selectedLocationName != null
                   ? IconButton(
-                      icon: const Icon(
-                        Icons.close,
-                        color: Colors.white54,
-                        size: 18,
-                      ),
-                      onPressed: () => setState(() {
-                        _selectedLocationName = null;
-                        _locationController.clear();
-                      }),
-                    )
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white54,
+                  size: 18,
+                ),
+                onPressed: () => setState(() {
+                  _selectedLocationName = null;
+                  _locationController.clear();
+                }),
+              )
                   : null,
             ),
           ),
@@ -376,7 +356,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                // Consistent with other glass elements
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(15),
@@ -386,40 +365,39 @@ class _CreatePostPageState extends State<CreatePostPage> {
                   children: _locationResults
                       .map(
                         (loc) => Column(
-                          children: [
-                            ListTile(
-                              title: Text(
-                                loc['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              subtitle: Text(
-                                "${loc['area']} • ${loc['address']}",
-                                maxLines: 1,
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.6),
-                                  fontSize: 12,
-                                ),
-                              ),
-                              onTap: () {
-                                setState(() {
-                                  _selectedLocationName = loc['name'];
-                                  _locationResults = [];
-                                  _locationController.text = loc['name'];
-                                });
-                              },
+                      children: [
+                        ListTile(
+                          title: Text(
+                            loc['name'],
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
-                            // Add a separator between results except the last one
-                            if (loc != _locationResults.last)
-                              Divider(
-                                color: Colors.white.withOpacity(0.05),
-                                height: 1,
-                              ),
-                          ],
+                          ),
+                          subtitle: Text(
+                            "${loc['area']} • ${loc['address']}",
+                            maxLines: 1,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.6),
+                              fontSize: 12,
+                            ),
+                          ),
+                          onTap: () {
+                            setState(() {
+                              _selectedLocationName = loc['name'];
+                              _locationResults = [];
+                              _locationController.text = loc['name'];
+                            });
+                          },
                         ),
-                      )
+                        if (loc != _locationResults.last)
+                          Divider(
+                            color: Colors.white.withOpacity(0.05),
+                            height: 1,
+                          ),
+                      ],
+                    ),
+                  )
                       .toList(),
                 ),
               ),
@@ -429,7 +407,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
     ],
   );
 
-  Widget _buildMediaPicker() => GestureDetector(
+  Widget _buildMediaPicker(LanguageProvider lp) => GestureDetector(
     onTap: () async {
       final i = await ImagePicker().pickMultiImage();
       if (i.isNotEmpty)
@@ -449,14 +427,14 @@ class _CreatePostPageState extends State<CreatePostPage> {
           style: BorderStyle.solid,
         ),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(LucideIcons.image, color: Colors.blueAccent),
-          SizedBox(width: 10),
+          const Icon(LucideIcons.image, color: Colors.blueAccent),
+          const SizedBox(width: 10),
           Text(
-            "Add Photos *",
-            style: TextStyle(
+            lp.getString('add_photos'), // TRANSLATED
+            style: const TextStyle(
               color: Colors.white70,
               fontWeight: FontWeight.bold,
             ),
@@ -473,7 +451,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
       final isSelected = _selectedCategories.contains(c);
       return GestureDetector(
         onTap: () => setState(
-          () => isSelected
+              () => isSelected
               ? _selectedCategories.remove(c)
               : _selectedCategories.add(c),
         ),
@@ -506,7 +484,7 @@ class _CreatePostPageState extends State<CreatePostPage> {
   Widget _buildStarRating() => Row(
     children: List.generate(
       5,
-      (i) => IconButton(
+          (i) => IconButton(
         icon: Icon(
           i < _rating ? Icons.star_rounded : Icons.star_outline_rounded,
           color: Colors.amber,
@@ -517,40 +495,40 @@ class _CreatePostPageState extends State<CreatePostPage> {
     ),
   );
 
-  Widget _buildSubmitButton(bool canSubmit) => Container(
+  Widget _buildSubmitButton(bool canSubmit, LanguageProvider lp) => Container(
     width: double.infinity,
     height: 55,
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(15),
       gradient: (canSubmit && !_isUploading)
           ? const LinearGradient(
-              colors: [Colors.blueAccent, Colors.purpleAccent],
-            )
+        colors: [Colors.blueAccent, Colors.purpleAccent],
+      )
           : LinearGradient(
-              colors: [
-                Colors.white.withOpacity(0.05),
-                Colors.white.withOpacity(0.1),
-              ],
-            ),
+        colors: [
+          Colors.white.withOpacity(0.05),
+          Colors.white.withOpacity(0.1),
+        ],
+      ),
       boxShadow: canSubmit
           ? [
-              BoxShadow(
-                color: Colors.blueAccent.withOpacity(0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ]
+        BoxShadow(
+          color: Colors.blueAccent.withOpacity(0.3),
+          blurRadius: 15,
+          offset: const Offset(0, 5),
+        ),
+      ]
           : [],
     ),
     child: ElevatedButton(
-      onPressed: (canSubmit && !_isUploading) ? _handlePostSubmission : null,
+      onPressed: (canSubmit && !_isUploading) ? () => _handlePostSubmission(lp) : null,
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.transparent,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
       child: Text(
-        _isUploading ? "UPLOADING..." : "POST NOW",
+        _isUploading ? lp.getString('uploading') : lp.getString('post_now'), // TRANSLATED
         style: TextStyle(
           color: canSubmit ? Colors.white : Colors.white24,
           fontWeight: FontWeight.bold,

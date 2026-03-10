@@ -2,6 +2,7 @@ import 'dart:ui'; // Required for BackdropFilter (Glass effect)
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 
 // Your existing imports
 import 'package:recommended_restaurant_entertainment/main.dart';
@@ -10,6 +11,7 @@ import 'package:recommended_restaurant_entertainment/adminModule/admin_dashboard
 import 'package:recommended_restaurant_entertainment/loginModule/forgotPassword_page.dart';
 import 'package:recommended_restaurant_entertainment/businessModule/pending_approval.dart';
 import 'package:recommended_restaurant_entertainment/businessModule/business_main_nav.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,7 +28,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
   String errorText = "";
 
-  void _showAdminLoginDialog() {
+  void _showAdminLoginDialog(LanguageProvider lp) {
     final TextEditingController adminEmail = TextEditingController();
     final TextEditingController adminPass = TextEditingController();
 
@@ -36,45 +38,38 @@ class _LoginPageState extends State<LoginPage> {
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
-          backgroundColor: const Color(
-            0xFF1A1A35,
-          ).withOpacity(0.9), // Deep midnight glass
+          backgroundColor: const Color(0xFF1A1A35).withOpacity(0.9),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
             side: BorderSide(color: Colors.cyanAccent.withOpacity(0.2)),
           ),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(LucideIcons.shieldCheck, color: Colors.cyanAccent),
-              SizedBox(width: 10),
+              const Icon(LucideIcons.shieldCheck, color: Colors.cyanAccent),
+              const SizedBox(width: 10),
               Text(
-                "Admin Portal",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                lp.getString('admin_portal'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                "Restricted access. Please authenticate.",
-                style: TextStyle(color: Colors.white60, fontSize: 13),
+              Text(
+                lp.getString('restricted_access'),
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
               ),
               const SizedBox(height: 20),
-              // Admin Email Field
               _buildTextField(
                 controller: adminEmail,
-                hint: "Admin Email",
+                hint: lp.getString('admin_email'),
                 icon: LucideIcons.mail,
               ),
               const SizedBox(height: 15),
-              // Admin Password Field
               _buildTextField(
                 controller: adminPass,
-                hint: "Password",
+                hint: lp.getString('password'),
                 icon: LucideIcons.lock,
                 isPassword: true,
               ),
@@ -85,24 +80,16 @@ class _LoginPageState extends State<LoginPage> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                "Cancel",
+                lp.getString('cancel'),
                 style: TextStyle(color: Colors.white.withOpacity(0.5)),
               ),
             ),
             const SizedBox(width: 10),
-            // Glowing Action Button
             Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Colors.cyanAccent, Colors.blueAccent],
-                ),
+                gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.cyanAccent.withOpacity(0.2),
-                    blurRadius: 10,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 10)],
               ),
               child: ElevatedButton(
                 onPressed: () async {
@@ -117,33 +104,22 @@ class _LoginPageState extends State<LoginPage> {
                     Navigator.pop(context);
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => AdminDashboard(adminData: adminData),
-                      ),
+                      MaterialPageRoute(builder: (_) => AdminDashboard(adminData: adminData)),
                     );
                   } else {
-                    // Quick error feedback inside dialog
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Invalid Admin Credentials"),
-                        backgroundColor: Colors.redAccent,
-                      ),
+                      SnackBar(content: Text(lp.getString('invalid_admin')), backgroundColor: Colors.redAccent),
                     );
                   }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text(
-                  "ACCESS",
-                  style: TextStyle(
-                    color: Color(0xFF0F0C29),
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Text(
+                  lp.getString('access_btn'),
+                  style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -153,19 +129,15 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Future<void> _login() async {
+  Future<void> _login(LanguageProvider lp) async {
     final identifier = emailController.text.trim();
     final password = passwordController.text.trim();
     if (identifier.isEmpty || password.isEmpty) {
-      setState(() => errorText = "Please enter your credentials");
+      setState(() => errorText = lp.getString('enter_credentials'));
       return;
     }
-    setState(() {
-      _isLoading = true;
-      errorText = "";
-    });
+    setState(() { _isLoading = true; errorText = ""; });
     try {
-      // Inside your _login() function in login_page.dart
       if (isBusiness) {
         final bizData = await Supabase.instance.client
             .from('business_profiles')
@@ -176,30 +148,23 @@ class _LoginPageState extends State<LoginPage> {
 
         if (bizData != null) {
           final String status = bizData['status'] ?? 'pending';
-          final String? reason =
-              bizData['reject_reason']; // Ensure this column exists in Supabase
+          final String? reason = bizData['reject_reason'];
 
           if (status == 'inactive') {
-            if (mounted) _showAccountDisabledDialog();
+            if (mounted) _showAccountDisabledDialog(lp);
           } else if (status == 'approved') {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (_) => BusinessMainNavigation(businessData: bizData),
-              ),
+              MaterialPageRoute(builder: (_) => BusinessMainNavigation(businessData: bizData)),
             );
           } else {
-            // Pass the actual status ('rejected' or 'pending') and the reason
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PendingApprovalPage(status: status, rejectReason: reason),
-              ),
+              MaterialPageRoute(builder: (_) => PendingApprovalPage(status: status, rejectReason: reason)),
             );
           }
         } else {
-          setState(() => errorText = "Invalid Business Credentials");
+          setState(() => errorText = lp.getString('invalid_biz_cred'));
         }
       } else {
         final userData = await Supabase.instance.client
@@ -211,12 +176,10 @@ class _LoginPageState extends State<LoginPage> {
         if (userData != null && mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => MainNavigation(userData: userData),
-            ),
+            MaterialPageRoute(builder: (_) => MainNavigation(userData: userData)),
           );
         } else {
-          setState(() => errorText = "Invalid User Credentials");
+          setState(() => errorText = lp.getString('invalid_user_cred'));
         }
       }
     } catch (e) {
@@ -226,8 +189,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // --- NEW: ACCOUNT DISABLED DIALOG ---
-  void _showAccountDisabledDialog() {
+  void _showAccountDisabledDialog(LanguageProvider lp) {
     showDialog(
       context: context,
       builder: (context) => BackdropFilter(
@@ -238,26 +200,23 @@ class _LoginPageState extends State<LoginPage> {
             borderRadius: BorderRadius.circular(20),
             side: const BorderSide(color: Colors.redAccent, width: 0.5),
           ),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(LucideIcons.alertTriangle, color: Colors.redAccent),
-              SizedBox(width: 10),
-              Text("Access Denied", style: TextStyle(color: Colors.white)),
+              const Icon(LucideIcons.alertTriangle, color: Colors.redAccent),
+              const SizedBox(width: 10),
+              Text(lp.getString('access_denied'), style: const TextStyle(color: Colors.white)),
             ],
           ),
-          content: const Text(
-            "Your business account has been deactivated by the administrator due to reported violations or policy issues. Please contact our support team for more information 03-123456789.",
-            style: TextStyle(color: Colors.white70),
+          content: Text(
+            lp.getString('deactivated_msg'),
+            style: const TextStyle(color: Colors.white70),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "CLOSE",
-                style: TextStyle(
-                  color: Colors.cyanAccent,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Text(
+                lp.getString('close'),
+                style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -268,6 +227,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context);
     Color glassColor = Colors.white.withOpacity(0.12);
     Color borderColor = Colors.white.withOpacity(0.2);
 
@@ -279,79 +239,38 @@ class _LoginPageState extends State<LoginPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0F0C29), // Dark Space
-              Color(0xFF302B63), // Purple
-              Color(0xFF24243E), // Midnight
-            ],
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
           ),
         ),
         child: SafeArea(
           child: Stack(
             children: [
-              // FIXED: Background Glow using BoxShadow
-              Positioned(
-                top: -30,
-                left: -30,
-                child: Container(
-                  width: 150,
-                  height: 150,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.blueAccent.withOpacity(0.2),
-                        blurRadius: 100,
-                        spreadRadius: 50,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
               Positioned(
                 top: 10,
                 right: 10,
                 child: IconButton(
-                  icon: Icon(
-                    LucideIcons.shieldCheck,
-                    color: Colors.white.withOpacity(0.3),
-                  ),
-                  onPressed: _showAdminLoginDialog,
+                  icon: Icon(LucideIcons.shieldCheck, color: Colors.white.withOpacity(0.3)),
+                  onPressed: () => _showAdminLoginDialog(lp),
                 ),
               ),
-
               Center(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(
                     children: [
-                      // --- LOGO ---
                       Container(
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.white.withOpacity(0.1),
-                              blurRadius: 30,
-                            ),
-                          ],
+                          boxShadow: [BoxShadow(color: Colors.white.withOpacity(0.1), blurRadius: 30)],
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(30),
-                          child: Image.asset(
-                            'assets/nomi_logo.jpeg',
-                            height: 110,
-                            width: 110,
-                            fit: BoxFit.cover,
-                          ),
+                          child: Image.asset('assets/nomi_logo.jpeg', height: 110, width: 110, fit: BoxFit.cover),
                         ),
                       ),
                       const SizedBox(height: 30),
-                      _buildRoleSwitch(),
+                      _buildRoleSwitch(lp),
                       const SizedBox(height: 25),
-
-                      // --- GLASS CARD ---
                       ClipRRect(
                         borderRadius: BorderRadius.circular(30),
                         child: BackdropFilter(
@@ -361,120 +280,55 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: BoxDecoration(
                               color: glassColor,
                               borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: borderColor,
-                                width: 1.5,
-                              ),
+                              border: Border.all(color: borderColor, width: 1.5),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  isBusiness
-                                      ? "Business Portal"
-                                      : "Welcome Back",
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                                  isBusiness ? lp.getString('biz_portal') : lp.getString('welcome_back'),
+                                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
                                 ),
                                 const SizedBox(height: 25),
                                 _buildTextField(
                                   controller: emailController,
-                                  hint: isBusiness
-                                      ? "Business Email"
-                                      : "Username or Email",
-                                  icon: isBusiness
-                                      ? LucideIcons.briefcase
-                                      : LucideIcons.user,
+                                  hint: isBusiness ? lp.getString('biz_email') : lp.getString('username_email'),
+                                  icon: isBusiness ? LucideIcons.briefcase : LucideIcons.user,
                                 ),
                                 const SizedBox(height: 20),
                                 _buildTextField(
                                   controller: passwordController,
-                                  hint: "Password",
+                                  hint: lp.getString('password'),
                                   icon: LucideIcons.lock,
                                   isPassword: true,
                                 ),
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
-                                    onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const ForgotPasswordPage(),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      "Forgot password?",
-                                      style: TextStyle(
-                                        color: Colors.white60,
-                                        fontSize: 13,
-                                      ),
-                                    ),
+                                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordPage())),
+                                    child: Text(lp.getString('forgot_password'), style: const TextStyle(color: Colors.white60, fontSize: 13)),
                                   ),
                                 ),
                                 if (errorText.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
-                                    child: Text(
-                                      errorText,
-                                      style: const TextStyle(
-                                        color: Colors.redAccent,
-                                        fontSize: 12,
-                                      ),
-                                    ),
+                                    child: Text(errorText, style: const TextStyle(color: Colors.redAccent, fontSize: 12)),
                                   ),
                                 const SizedBox(height: 15),
-
-                                // --- GLASS BUTTON ---
-                                // --- UPDATED LOGIN BUTTON ---
                                 InkWell(
-                                  onTap: _isLoading ? null : _login,
+                                  onTap: _isLoading ? null : () => _login(lp),
                                   child: Container(
                                     width: double.infinity,
                                     height: 55,
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(15),
-                                      // Updated to match your Feedback/Navigation style
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Colors.cyanAccent,
-                                          Colors.blueAccent,
-                                          Colors.purpleAccent,
-                                        ],
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.cyanAccent.withOpacity(
-                                            0.3,
-                                          ),
-                                          blurRadius: 15,
-                                          offset: const Offset(0, 5),
-                                        ),
-                                      ],
+                                      gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent, Colors.purpleAccent]),
+                                      boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
                                     ),
                                     child: Center(
                                       child: _isLoading
-                                          ? const SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                color: Color(0xFF0F0C29),
-                                                strokeWidth: 2,
-                                              ),
-                                            )
-                                          : const Text(
-                                              "LOG IN",
-                                              style: TextStyle(
-                                                color: Color(
-                                                  0xFF0F0C29,
-                                                ), // Dark text for high contrast on neon
-                                                fontWeight: FontWeight.bold,
-                                                letterSpacing: 1.2,
-                                              ),
-                                            ),
+                                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xFF0F0C29), strokeWidth: 2))
+                                          : Text(lp.getString('login_btn'), style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, letterSpacing: 1.2)),
                                     ),
                                   ),
                                 ),
@@ -485,20 +339,8 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       const SizedBox(height: 30),
                       TextButton(
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                RegisterPage(initialIsBusiness: isBusiness),
-                          ),
-                        ),
-                        child: const Text(
-                          "CREATE NEW ACCOUNT",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueAccent,
-                          ),
-                        ),
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => RegisterPage(initialIsBusiness: isBusiness))),
+                        child: Text(lp.getString('create_new_acc'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
                       ),
                     ],
                   ),
@@ -511,7 +353,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildRoleSwitch() {
+  Widget _buildRoleSwitch(LanguageProvider lp) {
     return Container(
       width: 280,
       height: 50,
@@ -525,23 +367,13 @@ class _LoginPageState extends State<LoginPage> {
         children: [
           AnimatedAlign(
             duration: const Duration(milliseconds: 250),
-            alignment: isBusiness
-                ? Alignment.centerRight
-                : Alignment.centerLeft,
+            alignment: isBusiness ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
               width: 135,
               decoration: BoxDecoration(
-                // Neon Gradient for the active toggle
-                gradient: const LinearGradient(
-                  colors: [Colors.cyanAccent, Colors.blueAccent],
-                ),
+                gradient: const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent]),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.cyanAccent.withOpacity(0.2),
-                    blurRadius: 8,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.2), blurRadius: 8)],
               ),
             ),
           ),
@@ -551,15 +383,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: GestureDetector(
                   onTap: () => setState(() => isBusiness = false),
                   child: Center(
-                    child: Text(
-                      "User",
-                      style: TextStyle(
-                        color: !isBusiness
-                            ? const Color(0xFF0F0C29)
-                            : Colors.white70,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: Text(lp.getString('user_tab'), style: TextStyle(color: !isBusiness ? const Color(0xFF0F0C29) : Colors.white70, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -567,15 +391,7 @@ class _LoginPageState extends State<LoginPage> {
                 child: GestureDetector(
                   onTap: () => setState(() => isBusiness = true),
                   child: Center(
-                    child: Text(
-                      "Business",
-                      style: TextStyle(
-                        color: isBusiness
-                            ? const Color(0xFF0F0C29)
-                            : Colors.white70,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: Text(lp.getString('business_tab'), style: TextStyle(color: isBusiness ? const Color(0xFF0F0C29) : Colors.white70, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -586,12 +402,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool isPassword = false,
-  }) {
+  Widget _buildTextField({required TextEditingController controller, required String hint, required IconData icon, bool isPassword = false}) {
     return TextField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
@@ -602,25 +413,14 @@ class _LoginPageState extends State<LoginPage> {
         prefixIcon: Icon(icon, color: Colors.blueAccent, size: 20),
         suffixIcon: isPassword
             ? IconButton(
-                icon: Icon(
-                  _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
-                  color: Colors.white54,
-                  size: 18,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              )
+          icon: Icon(_obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye, color: Colors.white54, size: 18),
+          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+        )
             : null,
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: const BorderSide(color: Colors.blueAccent),
-        ),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.blueAccent)),
       ),
     );
   }

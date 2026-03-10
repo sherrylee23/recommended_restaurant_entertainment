@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class SystemMessagePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -35,13 +37,16 @@ class _SystemMessagePageState extends State<SystemMessagePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Access language provider
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text(
-          "System Notifications",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          lp.getString('system_notifications'), // TRANSLATED TITLE
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -83,7 +88,7 @@ class _SystemMessagePageState extends State<SystemMessagePage> {
                       Icon(LucideIcons.bellOff, size: 50, color: Colors.white.withOpacity(0.2)),
                       const SizedBox(height: 16),
                       Text(
-                        "No notifications yet.",
+                        lp.getString('no_notifications'), // TRANSLATED EMPTY STATE
                         style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 16),
                       ),
                     ],
@@ -135,7 +140,7 @@ class _SystemMessagePageState extends State<SystemMessagePage> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Text(
-                                      msg['title'] ?? "Official Update",
+                                      msg['title'] ?? lp.getString('official_update'), // TRANSLATED DEFAULT TITLE
                                       style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 15,

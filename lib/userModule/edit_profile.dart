@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -27,7 +29,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   void initState() {
     super.initState();
-    // --- LOGIC PRESERVED ---
     _imageUrl = widget.userData['profile_url']?.toString();
     _idController = TextEditingController(text: widget.userData['id']?.toString() ?? "");
     _usernameController = TextEditingController(text: widget.userData['username']?.toString() ?? "");
@@ -41,7 +42,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  // --- LOGIC PRESERVED: IMAGE PICKING & UPLOADING ---
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
@@ -63,7 +63,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  Future<void> _updateProfile() async {
+  Future<void> _updateProfile(LanguageProvider lp) async {
     setState(() => _isSaving = true);
     try {
       final String? newImageUrl = await _uploadImage();
@@ -77,11 +77,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
       if (mounted) {
         final updatedData = await Supabase.instance.client.from('profiles').select().eq(widget.userData['user_id'] != null ? 'user_id' : 'id', identifier).single();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile updated!"), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(lp.getString('profile_updated')),
+            backgroundColor: Colors.green
+        ));
         Navigator.pop(context, updatedData);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Update Failed: ${e.toString()}"), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text("${lp.getString('update_failed')}: ${e.toString()}"),
+          backgroundColor: Colors.red
+      ));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -89,11 +95,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
-        title: const Text("Edit Profile", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(lp.getString('edit_profile'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -116,15 +124,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
               children: [
                 _buildProfileImagePicker(),
                 const SizedBox(height: 40),
-                _buildTextField("Username", _usernameController, enabled: true, icon: LucideIcons.user),
+                _buildTextField(lp.getString('username'), _usernameController, enabled: true, icon: LucideIcons.user),
                 const SizedBox(height: 20),
-                _buildGenderDropdown(),
+                _buildGenderDropdown(lp),
                 const SizedBox(height: 20),
-                _buildTextField("Email Address", _emailController, enabled: false, icon: LucideIcons.mail),
+                _buildTextField(lp.getString('email_address'), _emailController, enabled: false, icon: LucideIcons.mail),
                 const SizedBox(height: 20),
-                _buildTextField("User ID", _idController, enabled: false, icon: LucideIcons.contact),
+                _buildTextField(lp.getString('user_id'), _idController, enabled: false, icon: LucideIcons.contact),
                 const SizedBox(height: 50),
-                _buildSaveButton(),
+                _buildSaveButton(lp),
                 const SizedBox(height: 30),
               ],
             ),
@@ -209,13 +217,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildGenderDropdown() {
+  Widget _buildGenderDropdown(LanguageProvider lp) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text("Gender", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.5), fontSize: 13)),
+          child: Text(lp.getString('gender'), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.5), fontSize: 13)),
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 15),
@@ -231,12 +239,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
               dropdownColor: const Color(0xFF1A1A35),
               style: const TextStyle(color: Colors.white, fontSize: 16),
               icon: const Icon(LucideIcons.chevronDown, color: Colors.cyanAccent, size: 18),
-              items: ["Male", "Female"].map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value, style: const TextStyle(color: Colors.white)),
-                );
-              }).toList(),
+              items: [
+                DropdownMenuItem(value: "Male", child: Text(lp.getString('male'))),
+                DropdownMenuItem(value: "Female", child: Text(lp.getString('female'))),
+              ],
               onChanged: (newValue) => setState(() => _selectedGender = newValue!),
             ),
           ),
@@ -245,7 +251,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Widget _buildSaveButton() {
+  Widget _buildSaveButton(LanguageProvider lp) {
     return SizedBox(
       width: double.infinity,
       height: 55,
@@ -256,7 +262,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           boxShadow: [BoxShadow(color: Colors.cyanAccent.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5))],
         ),
         child: ElevatedButton(
-          onPressed: _isSaving ? null : _updateProfile,
+          onPressed: _isSaving ? null : () => _updateProfile(lp),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
@@ -264,7 +270,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           ),
           child: _isSaving
               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xFF0F0C29), strokeWidth: 3))
-              : const Text("SAVE CHANGES", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
+              : Text(lp.getString('save_changes'), style: const TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)),
         ),
       ),
     );

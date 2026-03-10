@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'package:recommended_restaurant_entertainment/userModule/feedback.dart';
 import 'package:recommended_restaurant_entertainment/customer_service/nomi_chat_screen.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class HelpCenterPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -10,6 +12,9 @@ class HelpCenterPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Access language provider
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
@@ -18,9 +23,9 @@ class HelpCenterPage extends StatelessWidget {
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Help Center",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Text(
+          lp.getString('help'), // TRANSLATED TITLE
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -42,11 +47,11 @@ class HelpCenterPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildSectionHeader("SUPPORT"),
+                _buildSectionHeader(lp.getString('support')), // TRANSLATED HEADER
                 const SizedBox(height: 12),
                 _buildSectionCard([
                   _buildSupportItem(
-                    title: "Chat with Nomi",
+                    title: lp.getString('chat_nomi'), // TRANSLATED ITEM
                     icon: LucideIcons.bot,
                     context: context,
                     onTap: () => Navigator.push(
@@ -56,7 +61,7 @@ class HelpCenterPage extends StatelessWidget {
                   ),
                   Divider(height: 1, color: Colors.white.withOpacity(0.1), indent: 16, endIndent: 16),
                   _buildSupportItem(
-                    title: "Feedback",
+                    title: lp.getString('feedback'), // TRANSLATED ITEM
                     icon: LucideIcons.messageSquare,
                     context: context,
                     onTap: () => Navigator.push(

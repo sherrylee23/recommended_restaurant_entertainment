@@ -2,7 +2,9 @@ import 'dart:ui'; // Required for Glassmorphism
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'package:recommended_restaurant_entertainment/searchModule/search_result.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class SearchEntryPage extends StatefulWidget {
   final Map<String, dynamic> currentUserData;
@@ -116,6 +118,9 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Access language provider
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -131,7 +136,7 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
         child: Column(
           children: [
             // --- GLASS SEARCH BAR ---
-            _buildGlassAppBar(context),
+            _buildGlassAppBar(context, lp),
 
             Expanded(
               child: SingleChildScrollView(
@@ -140,7 +145,7 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Section: Top Rated
-                    _buildSectionHeader(LucideIcons.trophy, "Top Rated Locations", Colors.orangeAccent),
+                    _buildSectionHeader(LucideIcons.trophy, lp.getString('top_rated_loc'), Colors.orangeAccent),
                     const SizedBox(height: 12),
                     _isLoadingRankings
                         ? const Center(child: CircularProgressIndicator(color: Colors.white24))
@@ -149,11 +154,11 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
                     const SizedBox(height: 35),
 
                     // Section: Quick Categories
-                    _buildSectionHeader(LucideIcons.layoutGrid, "Quick Categories", Colors.blueAccent),
+                    _buildSectionHeader(LucideIcons.layoutGrid, lp.getString('quick_categories'), Colors.blueAccent),
                     const SizedBox(height: 12),
                     _isLoadingCategories
                         ? const Center(child: CircularProgressIndicator(color: Colors.white24))
-                        : _buildCategoryWrap(),
+                        : _buildCategoryWrap(lp),
                   ],
                 ),
               ),
@@ -164,7 +169,7 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     );
   }
 
-  Widget _buildGlassAppBar(BuildContext context) {
+  Widget _buildGlassAppBar(BuildContext context, LanguageProvider lp) {
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
@@ -193,7 +198,7 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
                     autofocus: true,
                     style: const TextStyle(color: Colors.white, fontSize: 15),
                     decoration: InputDecoration(
-                      hintText: "Search location, title...",
+                      hintText: lp.getString('search_hint'), // TRANSLATED HINT
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.4)),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -284,9 +289,9 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     );
   }
 
-  Widget _buildCategoryWrap() {
+  Widget _buildCategoryWrap(LanguageProvider lp) {
     if (_dynamicCategories.isEmpty) {
-      return const Text("No categories found.", style: TextStyle(color: Colors.white38));
+      return Text(lp.getString('no_categories'), style: const TextStyle(color: Colors.white38));
     }
     return Wrap(
       spacing: 10,

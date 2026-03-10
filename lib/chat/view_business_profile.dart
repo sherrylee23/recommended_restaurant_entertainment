@@ -2,9 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'chat_detail.dart';
 import 'package:recommended_restaurant_entertainment/businessModule/booking_form.dart';
 import 'package:intl/intl.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class UserViewBusinessPage extends StatefulWidget {
   final Map<String, dynamic> businessData;
@@ -22,7 +24,7 @@ class UserViewBusinessPage extends StatefulWidget {
 
 class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
   final _supabase = Supabase.instance.client;
-  Map<String, dynamic>? _currentBusinessData; // To hold fresh profile data
+  Map<String, dynamic>? _currentBusinessData;
   List<Map<String, dynamic>> _posts = [];
   bool _isLoading = true;
 
@@ -30,11 +32,10 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
   void initState() {
     super.initState();
     _currentBusinessData = widget.businessData;
-    _fetchBusinessProfile(); // Refresh profile to get the latest image/info
+    _fetchBusinessProfile();
     _fetchPosts();
   }
 
-  // Fetch fresh business profile to ensure the user sees the latest profile image
   Future<void> _fetchBusinessProfile() async {
     try {
       final data = await _supabase
@@ -71,7 +72,7 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
     }
   }
 
-  void _showSSMDialog(BuildContext context) {
+  void _showSSMDialog(BuildContext context, LanguageProvider lp) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -83,21 +84,21 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
               borderRadius: BorderRadius.circular(25),
               side: const BorderSide(color: Colors.greenAccent, width: 0.5),
             ),
-            title: const Row(
+            title: Row(
               children: [
-                Icon(LucideIcons.shieldCheck, color: Colors.greenAccent),
-                SizedBox(width: 10),
-                Text("SSM Verified", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                const Icon(LucideIcons.shieldCheck, color: Colors.greenAccent),
+                const SizedBox(width: 10),
+                Text(lp.getString('ssm_verified'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
               ],
             ),
-            content: const Text(
-              "This business is officially verified via Suruhanjaya Syarikat Malaysia (SSM).",
-              style: TextStyle(fontSize: 14, color: Colors.white70, height: 1.5),
+            content: Text(
+              lp.getString('ssm_desc'),
+              style: const TextStyle(fontSize: 14, color: Colors.white70, height: 1.5),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text("CLOSE", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                child: Text(lp.getString('close'), style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -108,6 +109,8 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       body: Container(
@@ -127,10 +130,10 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
           child: CustomScrollView(
             physics: const BouncingScrollPhysics(),
             slivers: [
-              _buildSliverAppBar(),
-              SliverToBoxAdapter(child: _buildAboutSection()),
-              _buildPostHeader(),
-              _buildPostsList(),
+              _buildSliverAppBar(lp),
+              SliverToBoxAdapter(child: _buildAboutSection(lp)),
+              _buildPostHeader(lp),
+              _buildPostsList(lp),
             ],
           ),
         ),
@@ -157,14 +160,14 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
                 ),
               );
             },
-            child: const Text("BOOK NOW", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F0C29))),
+            child: Text(lp.getString('book_now'), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F0C29))),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSliverAppBar() {
+  Widget _buildSliverAppBar(LanguageProvider lp) {
     final String? profileImageUrl = _currentBusinessData?['profile_url'];
 
     return SliverAppBar(
@@ -183,7 +186,6 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 50),
-                // UPDATED: Profile Avatar with real image support
                 Container(
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
@@ -215,7 +217,7 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: () => _showSSMDialog(context),
+                      onTap: () => _showSSMDialog(context, lp),
                       child: const Icon(LucideIcons.badgeCheck, color: Colors.greenAccent, size: 22),
                     ),
                   ],
@@ -232,7 +234,7 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
     );
   }
 
-  Widget _buildAboutSection() {
+  Widget _buildAboutSection(LanguageProvider lp) {
     return Container(
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(20),
@@ -244,31 +246,31 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("ABOUT", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent, letterSpacing: 1.5)),
+          Text(lp.getString('about'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent, letterSpacing: 1.5)),
           const SizedBox(height: 15),
-          _buildInfoRow(LucideIcons.mapPin, "Address", _currentBusinessData?['address'] ?? "No address"),
-          _buildInfoRow(LucideIcons.clock, "Hours", _currentBusinessData?['hours'] ?? "No hours set"),
-          _buildInfoRow(LucideIcons.phone, "Phone", _currentBusinessData?['phone'] ?? "No contact"),
+          _buildInfoRow(LucideIcons.mapPin, lp.getString('address'), _currentBusinessData?['address'] ?? lp.getString('no_description')),
+          _buildInfoRow(LucideIcons.clock, lp.getString('hours'), _currentBusinessData?['hours'] ?? lp.getString('no_description')),
+          _buildInfoRow(LucideIcons.phone, lp.getString('phone'), _currentBusinessData?['phone'] ?? lp.getString('no_description')),
         ],
       ),
     );
   }
 
-  Widget _buildPostHeader() {
-    return const SliverToBoxAdapter(
+  Widget _buildPostHeader(LanguageProvider lp) {
+    return SliverToBoxAdapter(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(25, 10, 25, 10),
-        child: Text("Latest Updates", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        padding: const EdgeInsets.fromLTRB(25, 10, 25, 10),
+        child: Text(lp.getString('latest_updates'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
       ),
     );
   }
 
-  Widget _buildPostsList() {
+  Widget _buildPostsList(LanguageProvider lp) {
     if (_isLoading) {
       return const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Colors.blueAccent)));
     }
     if (_posts.isEmpty) {
-      return const SliverFillRemaining(child: Center(child: Text("No posts yet", style: TextStyle(color: Colors.white38))));
+      return SliverFillRemaining(child: Center(child: Text(lp.getString('no_posts_yet'), style: const TextStyle(color: Colors.white38))));
     }
 
     final String? profileImageUrl = _currentBusinessData?['profile_url'];
@@ -302,7 +304,6 @@ class _UserViewBusinessPageState extends State<UserViewBusinessPage> {
               children: [
                 Row(
                   children: [
-                    // Small Avatar for the post
                     CircleAvatar(
                       radius: 18,
                       backgroundColor: Colors.blueAccent,

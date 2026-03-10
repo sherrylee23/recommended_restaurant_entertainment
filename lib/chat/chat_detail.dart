@@ -2,8 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'package:recommended_restaurant_entertainment/businessModule/booking_form.dart';
 import 'view_business_profile.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class UserChatDetailPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -46,11 +48,11 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
     final String userId = widget.userData['id'].toString();
     final String businessId = widget.businessData['id'].toString();
 
     return Scaffold(
-      // 1. CHANGED: Removed extendBodyBehindAppBar to prevent content disappearing
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
         elevation: 0,
@@ -60,7 +62,6 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: InkWell(
-          // Use InkWell for a subtle ripple effect when clicking
           onTap: () {
             Navigator.push(
               context,
@@ -78,12 +79,10 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
               CircleAvatar(
                 radius: 16,
                 backgroundColor: Colors.blueAccent.withOpacity(0.1),
-                // 1. Ensure the key matches your database (profile_image_url)
                 backgroundImage: (widget.businessData['profile_url'] != null &&
                     widget.businessData['profile_url'].toString().isNotEmpty)
                     ? NetworkImage(widget.businessData['profile_url'])
                     : null,
-                // 2. Set child to null if the image exists so the icon doesn't sit on top
                 child: (widget.businessData['profile_url'] == null ||
                     widget.businessData['profile_url'].toString().isEmpty)
                     ? const Icon(
@@ -106,12 +105,11 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
-                      // ADD THESE TWO LINES
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
                     Text(
-                      "View Profile", // Added subtitle to hint it is clickable
+                      lp.getString('view_profile'), // TRANSLATED
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.blueAccent.withOpacity(0.8),
@@ -133,9 +131,9 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                 size: 14,
                 color: Colors.white,
               ),
-              label: const Text(
-                "BOOK",
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              label: Text(
+                lp.getString('book_btn'), // TRANSLATED
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blueAccent.withOpacity(0.3),
@@ -161,16 +159,15 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
         ),
         child: Column(
           children: [
-            // 2. Wrap StreamBuilder in Expanded
-            Expanded(child: _buildMessageList(userId, businessId)),
-            _buildInput(userId, businessId),
+            Expanded(child: _buildMessageList(userId, businessId, lp)),
+            _buildInput(userId, businessId, lp),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMessageList(String userId, String businessId) {
+  Widget _buildMessageList(String userId, String businessId, LanguageProvider lp) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _supabase
           .from('messages')
@@ -180,8 +177,8 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
         if (snapshot.hasError)
           return Center(
             child: Text(
-              "Error loading messages",
-              style: TextStyle(color: Colors.white),
+              lp.getString('error_loading_msgs'), // TRANSLATED
+              style: const TextStyle(color: Colors.white),
             ),
           );
         if (!snapshot.hasData)
@@ -198,7 +195,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
 
         return ListView.builder(
           controller: _scrollController,
-          reverse: true, // Newest messages at the bottom
+          reverse: true,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           itemCount: messages.length,
           itemBuilder: (context, index) {
@@ -233,14 +230,14 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                     decoration: BoxDecoration(
                       gradient: isMe
                           ? const LinearGradient(
-                              colors: [Colors.blueAccent, Color(0xFF6A11CB)],
-                            )
+                        colors: [Colors.blueAccent, Color(0xFF6A11CB)],
+                      )
                           : LinearGradient(
-                              colors: [
-                                Colors.white.withOpacity(0.1),
-                                Colors.white.withOpacity(0.05),
-                              ],
-                            ),
+                        colors: [
+                          Colors.white.withOpacity(0.1),
+                          Colors.white.withOpacity(0.05),
+                        ],
+                      ),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(20),
                         topRight: const Radius.circular(20),
@@ -272,7 +269,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
     );
   }
 
-  Widget _buildInput(String uIdStr, String bIdStr) {
+  Widget _buildInput(String uIdStr, String bIdStr, LanguageProvider lp) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
       decoration: BoxDecoration(
@@ -287,7 +284,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                 controller: _messageController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: "Type a message...",
+                  hintText: lp.getString('type_message'), // TRANSLATED
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.05),

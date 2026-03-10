@@ -2,8 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'nomi_chat_logic.dart';
 import 'package:recommended_restaurant_entertainment/customer_service/report_business.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class ChatNomiPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -22,7 +24,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
   bool _isWithAgent = false;
   bool _isTyping = false;
 
-  // Local list used ONLY before connecting to a human agent
+  // Local list greeting preserved in English
   final List<Map<String, dynamic>> _messages = [
     {"text": "Hi! I'm Nomi. How can I help you today?", "isUser": false},
   ];
@@ -34,7 +36,6 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
     _checkExistingSession();
   }
 
-  // Check if user already has an active agent session from a previous visit
   Future<void> _checkExistingSession() async {
     final response = await Supabase.instance.client
         .from('support_chats')
@@ -56,8 +57,6 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
     if (rawText.isEmpty) return;
 
     if (_isWithAgent) {
-      // MODE: HUMAN AGENT
-      // Send directly to database. StreamBuilder will update the UI automatically.
       _controller.clear();
       try {
         await Supabase.instance.client.from('support_messages').insert({
@@ -76,7 +75,6 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
         debugPrint("Error sending message to DB: $e");
       }
     } else {
-      // MODE: AI BOT
       if (_isTyping) return;
       _controller.clear();
       setState(() {
@@ -134,6 +132,8 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
@@ -142,7 +142,8 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(_isWithAgent ? "Live Support" : "Chat with Nomi",
+        title: Text(
+            _isWithAgent ? lp.getString('live_support') : lp.getString('chat_nomi_title'), // TRANSLATED
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -159,7 +160,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                   color: Colors.cyanAccent,
                 ),
                 label: Text(
-                  _isConnectingToAgent ? "Connecting..." : "Live Support",
+                  _isConnectingToAgent ? lp.getString('connecting') : lp.getString('live_support'), // TRANSLATED
                   style: const TextStyle(color: Colors.cyanAccent, fontSize: 12),
                 ),
               ),
@@ -183,7 +184,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   itemCount: _messages.length,
-                  itemBuilder: (context, index) => _buildMessageBubble(_messages[index]),
+                  itemBuilder: (context, index) => _buildMessageBubble(_messages[index], lp),
                 )
                     : StreamBuilder<List<Map<String, dynamic>>>(
                   stream: Supabase.instance.client
@@ -207,14 +208,14 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                         return _buildMessageBubble({
                           "text": msg['content'],
                           "isUser": !msg['is_admin'],
-                        });
+                        }, lp);
                       },
                     );
                   },
                 ),
               ),
               if (_isTyping) _buildTypingIndicator(),
-              _buildInputArea(),
+              _buildInputArea(lp),
             ],
           ),
         ),
@@ -222,9 +223,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
     );
   }
 
-  // --- UI WIDGETS ---
-
-  Widget _buildMessageBubble(Map<String, dynamic> msg) {
+  Widget _buildMessageBubble(Map<String, dynamic> msg, LanguageProvider lp) {
     bool isUser = msg["isUser"] ?? false;
     bool showAction = msg["showAction"] ?? false;
 
@@ -272,7 +271,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportBusinessPage(userData: widget.userData, businessName: null))),
                 icon: const Icon(LucideIcons.fileWarning, size: 16, color: Colors.amberAccent),
-                label: const Text("Fill Report Form", style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                label: Text(lp.getString('fill_report_btn'), style: const TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold)), // TRANSLATED
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.amberAccent.withOpacity(0.5)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -311,7 +310,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
     );
   }
 
-  Widget _buildInputArea() {
+  Widget _buildInputArea(LanguageProvider lp) {
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
@@ -335,7 +334,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                     controller: _controller,
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: _isWithAgent ? "Type a message to support..." : "Ask Nomi anything...",
+                      hintText: _isWithAgent ? lp.getString('support_input_hint') : lp.getString('nomi_input_hint'), // TRANSLATED
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                       border: InputBorder.none,
                     ),
@@ -390,7 +389,6 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
   }
 }
 
-// Bouncing dots widget
 class _BouncingDots extends StatefulWidget {
   const _BouncingDots();
   @override

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart'; // REQUIRED
 import 'chat_detail.dart';
 import 'view_business_profile.dart';
 import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart';
 import 'user_booking_history.dart';
 import 'comment_notification.dart';
+import '../language_provider.dart'; // REQUIRED
 
 class UserInboxPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -19,7 +21,7 @@ class UserInboxPage extends StatefulWidget {
 
 class _UserInboxPageState extends State<UserInboxPage> {
   final _supabase = Supabase.instance.client;
-  final TextEditingController _searchController = TextEditingController(); // Added for clearing
+  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
   Key _refreshKey = UniqueKey();
 
@@ -64,12 +66,14 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFF16162E),
-        title: const Text("Messages", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(lp.getString('messages_title'), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         actions: [
           _buildBookingAction(),
@@ -84,10 +88,9 @@ class _UserInboxPageState extends State<UserInboxPage> {
             colors: [Color(0xFF0F0C29), Color(0xFF302B63), Color(0xFF24243E)],
           ),
         ),
-        // MOVE SEARCH BAR HERE so it stays constant regardless of search state
         child: Column(
           children: [
-            _buildSearchBar(), // The Search Bar is now ALWAYS here
+            _buildSearchBar(lp),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _handleRefresh,
@@ -97,23 +100,22 @@ class _UserInboxPageState extends State<UserInboxPage> {
                   key: _refreshKey,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    // REMOVE _buildSearchBar() from here
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
-                          _buildSystemNotificationTile(),
+                          _buildSystemNotificationTile(lp),
                           const SizedBox(height: 12),
-                          _buildCommentNotificationTile(),
+                          _buildCommentNotificationTile(lp),
                         ]),
                       ),
                     ),
-                    SliverToBoxAdapter(child: _buildRecentHeader()),
-                    _buildChatHistorySliver(),
+                    SliverToBoxAdapter(child: _buildRecentHeader(lp)),
+                    _buildChatHistorySliver(lp),
                     const SliverToBoxAdapter(child: SizedBox(height: 100)),
                   ],
                 )
-                    : _buildSearchResults(), // Display results here
+                    : _buildSearchResults(lp),
               ),
             ),
           ],
@@ -122,7 +124,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  Widget _buildRecentHeader() {
+  Widget _buildRecentHeader(LanguageProvider lp) {
     return Padding(
       padding: const EdgeInsets.only(top: 30, bottom: 15, left: 25),
       child: Row(
@@ -136,13 +138,13 @@ class _UserInboxPageState extends State<UserInboxPage> {
             ),
           ),
           const SizedBox(width: 12),
-          const Text("Recent Conversations", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+          Text(lp.getString('recent_chats'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         ],
       ),
     );
   }
 
-  Widget _buildChatHistorySliver() {
+  Widget _buildChatHistorySliver(LanguageProvider lp) {
     final userId = widget.userData['id'];
 
     return StreamBuilder<List<Map<String, dynamic>>>(
@@ -159,7 +161,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
             .where((id) => id != userId)
             .toList();
 
-        if (businessIds.isEmpty) return const SliverToBoxAdapter(child: Center(child: Padding(padding: EdgeInsets.only(top: 50), child: Text("No conversations yet", style: TextStyle(color: Colors.white38)))));
+        if (businessIds.isEmpty) return SliverToBoxAdapter(child: Center(child: Padding(padding: const EdgeInsets.only(top: 50), child: Text(lp.getString('no_conv_yet'), style: const TextStyle(color: Colors.white38)))));
 
         return SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -180,7 +182,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
   Widget _buildBusinessTile(dynamic bId, List<Map<String, dynamic>> allMessages) {
     final userId = widget.userData['id'];
 
-    // 1. Get the conversation messages
     final conversation = allMessages.where((m) =>
     (m['sender_id'] == userId && m['receiver_id'] == bId) ||
         (m['sender_id'] == bId && m['receiver_id'] == userId)
@@ -190,7 +191,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
     final lastMsg = conversation.first;
 
-    // 2. Count ONLY messages sent FROM the business TO the user that are UNREAD
     final int unreadCount = conversation.where((m) =>
     m['sender_id'] == bId &&
         m['receiver_id'] == userId &&
@@ -216,7 +216,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
           ),
           child: ListTile(
             leading: Stack(
-              clipBehavior: Clip.none, // Allows the badge to sit slightly outside the avatar
+              clipBehavior: Clip.none,
               children: [
                 GestureDetector(
                   onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -275,7 +275,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
                 style: TextStyle(fontSize: 10, color: hasUnread ? Colors.blueAccent : Colors.white24)
             ),
             onTap: () async {
-              // Mark ALL messages from this business as read
               await _supabase.from('messages')
                   .update({'is_read': true})
                   .eq('receiver_id', userId)
@@ -293,18 +292,17 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(LanguageProvider lp) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: TextField(
-        controller: _searchController, // Controller added
+        controller: _searchController,
         onChanged: (value) => setState(() => _searchQuery = value),
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          hintText: "Search businesses...",
+          hintText: lp.getString('search_businesses'), // TRANSLATED
           hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
           prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
-          // FIXED: Added Clear Button
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
             icon: const Icon(LucideIcons.x, color: Colors.white38, size: 18),
@@ -335,42 +333,42 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  Widget _buildCommentNotificationTile() {
+  Widget _buildCommentNotificationTile(LanguageProvider lp) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _supabase.from('notifications').stream(primaryKey: ['id']).eq('user_id', widget.userData['id']),
       builder: (context, snapshot) {
         final hasUnread = snapshot.hasData && snapshot.data!.any((msg) => msg['is_read'] == false);
-        return _buildNotificationTile(icon: LucideIcons.messageCircle, iconColor: Colors.orangeAccent, title: "Post Comments", subtitle: "See who commented on your posts", hasUnread: hasUnread, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CommentNotificationPage(userData: widget.userData))));
+        return _buildNotificationTile(
+            icon: LucideIcons.messageCircle,
+            iconColor: Colors.orangeAccent,
+            title: lp.getString('post_comments_title'), // TRANSLATED
+            subtitle: lp.getString('post_comments_sub'), // TRANSLATED
+            hasUnread: hasUnread,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CommentNotificationPage(userData: widget.userData))));
       },
     );
   }
 
 
-  Widget _buildSystemNotificationTile() {
+  Widget _buildSystemNotificationTile(LanguageProvider lp) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _supabase
           .from('system_messages')
           .stream(primaryKey: ['id'])
           .eq('user_id', widget.userData['id']),
       builder: (context, snapshot) {
-        // 1. Handle Error
         if (snapshot.hasError) return const SizedBox.shrink();
 
-        // 2. Logic for unread status
-        // We check if data exists and if any message has is_read == false
         final bool hasUnread = snapshot.hasData &&
             snapshot.data!.any((msg) => msg['is_read'] == false);
 
-        // 3. Always return the tile (don't return a ProgressIndicator here)
-        // This prevents the tile from flickering or disappearing when a new message arrives
         return _buildNotificationTile(
           icon: LucideIcons.bell,
           iconColor: Colors.redAccent,
-          title: "System Notifications",
-          subtitle: "Updates on reports",
-          hasUnread: hasUnread, // This will reactively update
+          title: lp.getString('system_notif_title'), // TRANSLATED
+          subtitle: lp.getString('system_notif_sub'), // TRANSLATED
+          hasUnread: hasUnread,
           onTap: () async {
-            // Update database
             await _supabase
                 .from('system_messages')
                 .update({'is_read': true})
@@ -404,12 +402,8 @@ class _UserInboxPageState extends State<UserInboxPage> {
         final today = DateFormat('yyyy-MM-dd').format(now);
 
         bool showDot = snapshot.data!.any((b) {
-          // 1. Reminder: Active booking happening TODAY
           bool isTodayActive = b['booking_date'] == today && b['status'] == 'confirmed';
-
-          // 2. Notification: Business changed status and user hasn't opened history yet
           bool hasNewUpdate = b['user_viewed'] == false;
-
           return isTodayActive || hasNewUpdate;
         });
 
@@ -418,7 +412,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-// Helper to keep UI clean
   Widget _bookingIcon(bool showDot) {
     return Stack(
       children: [
@@ -442,11 +435,11 @@ class _UserInboxPageState extends State<UserInboxPage> {
     );
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildSearchResults(LanguageProvider lp) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _supabase.from('business_profiles').select().ilike('business_name', '%$_searchQuery%'),
       builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No businesses found", style: TextStyle(color: Colors.white38)));
+        if (!snapshot.hasData || snapshot.data!.isEmpty) return Center(child: Text(lp.getString('no_biz_found'), style: const TextStyle(color: Colors.white38)));
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           itemCount: snapshot.data!.length,
@@ -461,7 +454,6 @@ class _UserInboxPageState extends State<UserInboxPage> {
               child: ListTile(
                 leading: GestureDetector(
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserViewBusinessPage(userData: widget.userData, businessData: business))),
-                  // NEW: Display image in search results
                   child: _buildAvatar(business['profile_url'], radius: 18, iconSize: 16),
                 ),
                 title: Text(business['business_name'] ?? "", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),

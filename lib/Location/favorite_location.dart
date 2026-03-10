@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart'; // REQUIRED
+import '../language_provider.dart'; // REQUIRED
 
 class FavoritesPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -26,6 +28,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
   // --- LOGIC FUNCTIONS (STRICTLY PRESERVED) ---
 
   Future<void> _fetchFavorites() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final userId = widget.userData['id'];
@@ -35,24 +38,26 @@ class _FavoritesPageState extends State<FavoritesPage> {
           .eq('profile_id', userId)
           .order('created_at', ascending: false);
 
-      setState(() {
-        _favorites = List<Map<String, dynamic>>.from(data);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _favorites = List<Map<String, dynamic>>.from(data);
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint("Error fetching favorites: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _deleteFavorite(int id) async {
+  Future<void> _deleteFavorite(int id, LanguageProvider lp) async {
     try {
       await _supabase.from('favorite_places').delete().eq('id', id);
       _fetchFavorites();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text("Removed from favorites"),
+            content: Text(lp.getString('removed_fav')), // TRANSLATED
             backgroundColor: Colors.redAccent.withOpacity(0.8),
             behavior: SnackBarBehavior.floating,
           ),
@@ -63,7 +68,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
-  // --- CATEGORY ICON HELPER (MATCHING MAP STYLE) ---
   IconData _getCategoryIcon(String? category) {
     switch (category?.toLowerCase()) {
       case 'restaurant': case 'cafe': return LucideIcons.utensils;
@@ -76,10 +80,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
-  // --- REDESIGNED UI ---
-
   @override
   Widget build(BuildContext context) {
+    final lp = Provider.of<LanguageProvider>(context);
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F0C29),
@@ -90,9 +94,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
           icon: const Icon(LucideIcons.chevronLeft, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          "Saved Places",
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
+        title: Text(
+          lp.getString('saved_places'), // TRANSLATED
+          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
         ),
         centerTitle: true,
       ),
@@ -109,13 +113,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
             : _favorites.isEmpty
-            ? _buildEmptyState()
-            : _buildFavoritesList(),
+            ? _buildEmptyState(lp)
+            : _buildFavoritesList(lp),
       ),
     );
   }
 
-  Widget _buildFavoritesList() {
+  Widget _buildFavoritesList(LanguageProvider lp) {
     return ListView.builder(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 70,
@@ -126,6 +130,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
       itemCount: _favorites.length,
       itemBuilder: (context, index) {
         final place = _favorites[index];
+        final String category = place['category'] ?? 'place';
+
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
           child: ClipRRect(
@@ -147,7 +153,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       borderRadius: BorderRadius.circular(15),
                     ),
                     child: Icon(
-                      _getCategoryIcon(place['category']),
+                      _getCategoryIcon(category),
                       color: Colors.blueAccent,
                       size: 24,
                     ),
@@ -163,7 +169,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   subtitle: Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      (place['category'] ?? "Place").toUpperCase(),
+                      lp.getString(category).toUpperCase(), // TRANSLATED CATEGORY
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.4),
                         fontSize: 11,
@@ -181,7 +187,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       ),
                       child: const Icon(LucideIcons.trash2, color: Colors.redAccent, size: 18),
                     ),
-                    onPressed: () => _deleteFavorite(place['id']),
+                    onPressed: () => _deleteFavorite(place['id'], lp),
                   ),
                   onTap: () {
                     Navigator.pop(context, {
@@ -198,7 +204,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(LanguageProvider lp) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -212,13 +218,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
             child: Icon(LucideIcons.mapPin, size: 64, color: Colors.white.withOpacity(0.1)),
           ),
           const SizedBox(height: 24),
-          const Text(
-            "No favorites yet!",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+          Text(
+            lp.getString('no_favorites_title'), // TRANSLATED
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 8),
           Text(
-            "Go explore the map and save some places!",
+            lp.getString('no_favorites_desc'), // TRANSLATED
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.5)),
           ),
@@ -231,7 +237,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
-            child: const Text("Go Explore"),
+            child: Text(lp.getString('go_explore')), // TRANSLATED
           ),
         ],
       ),

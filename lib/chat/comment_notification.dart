@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/postModule/post_detail.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class CommentNotificationPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -19,7 +19,6 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
   final _supabase = Supabase.instance.client;
   Key _refreshKey = UniqueKey();
 
-  // --- LOGIC PRESERVED ---
   Future<void> _handleRefresh() async {
     setState(() { _refreshKey = UniqueKey(); });
     await Future.delayed(const Duration(milliseconds: 500));
@@ -169,7 +168,7 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
     );
   }
 
-  // --- UI HELPER WIDGETS ---
+  // UI
 
   Widget _buildEmptyState(LanguageProvider lp) {
     return ListView(
@@ -192,7 +191,7 @@ class _CommentNotificationPageState extends State<CommentNotificationPage> {
     return Center(child: Text(error, style: const TextStyle(color: Colors.white54)));
   }
 
-  // --- TAP LOGIC (PRESERVED) ---
+  // tap logic
   Future<void> _handleNotificationTap(Map<String, dynamic> item, String userId, LanguageProvider lp) async {
     try {
       await _supabase.from('notifications').update({'is_read': true}).eq('id', item['id']);

@@ -229,6 +229,8 @@ class AppTranslations {
       'book_btn': 'BOOK',
       'type_message': 'Type a message...',
       'error_loading_msgs': 'Error loading messages',
+      'recent_history': 'Recent History',
+      'no_history_found': 'No browsing history found.',
     },
     'zh': {
       'profile': '个人资料',
@@ -459,6 +461,8 @@ class AppTranslations {
       'book_btn': '预约',
       'type_message': '输入消息...',
       'error_loading_msgs': '加载消息时出错',
+      'recent_history': '浏览历史',
+      'no_history_found': '暂无浏览历史。',
     },
     'ms': {
       'profile': 'Profil',
@@ -689,6 +693,8 @@ class AppTranslations {
       'book_btn': 'TEMPAH',
       'type_message': 'Taip mesej...',
       'error_loading_msgs': 'Ralat memuatkan mesej',
+      'recent_history': 'Sejarah Pelayaran',
+      'no_history_found': 'Tiada sejarah pelayaran dijumpai.',
     },
   };
 }

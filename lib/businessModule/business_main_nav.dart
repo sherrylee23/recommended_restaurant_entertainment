@@ -22,6 +22,7 @@ class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
   Widget build(BuildContext context) {
     final dynamic businessId = widget.businessData['id'];
 
+    // define the sub pages
     final List<Widget> pages = [
       BusinessProfilePage(businessData: widget.businessData),
       BusinessBookingHistory(businessId: widget.businessData['id']),
@@ -29,7 +30,7 @@ class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
     ];
 
     return Scaffold(
-      extendBody: true, // Crucial: Allows pages to draw behind the nav bar
+      extendBody: true, // Allows pages to draw behind the nav bar
       backgroundColor: const Color(0xFF0F0C29),
       body: IndexedStack(index: _selectedIndex, children: pages),
 
@@ -54,8 +55,6 @@ class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
                   _buildNavItem(LucideIcons.user, 0),
 
                   // Booking History Tab
-
-                  // Inbox Tab with Real-time Logic Preserved
                   StreamBuilder<List<Map<String, dynamic>>>(
                     stream: _supabase
                         .from('bookings')
@@ -92,7 +91,7 @@ class _BusinessMainNavigationState extends State<BusinessMainNavigation> {
                     },
                   ),
 
-                  // 3. Inbox Tab (Keep your existing logic)
+                  // 3. Inbox Tab
                   StreamBuilder<List<Map<String, dynamic>>>(
                     stream: _supabase.from('messages').stream(primaryKey: ['id']),
                     builder: (context, snapshot) {

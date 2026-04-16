@@ -1,12 +1,12 @@
 import 'dart:io';
-import 'dart:ui'; // Required for Glassmorphism
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // REQUIRED
-import '../language_provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
+import '../language_provider.dart';
 
 class CreatePostPage extends StatefulWidget {
   final String profileUserId;
@@ -18,7 +18,6 @@ class CreatePostPage extends StatefulWidget {
 }
 
 class _CreatePostPageState extends State<CreatePostPage> {
-  // --- ALL LOGIC & CONTROLLERS PRESERVED ---
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
@@ -63,7 +62,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
     super.dispose();
   }
 
-  // --- LOGIC FUNCTIONS (UNTOUCHED) ---
 
   int _getWordCount(String text) {
     if (text.trim().isEmpty) return 0;
@@ -209,7 +207,6 @@ class _CreatePostPageState extends State<CreatePostPage> {
                     _buildMediaPicker(lp),
                     const SizedBox(height: 30),
 
-                    // --- TITLE ---
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [

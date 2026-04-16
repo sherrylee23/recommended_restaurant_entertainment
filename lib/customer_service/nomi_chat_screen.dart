@@ -2,10 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'nomi_chat_logic.dart';
 import 'package:recommended_restaurant_entertainment/customer_service/report_business.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class ChatNomiPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -24,7 +24,6 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
   bool _isWithAgent = false;
   bool _isTyping = false;
 
-  // Local list greeting preserved in English
   final List<Map<String, dynamic>> _messages = [
     {"text": "Hi! I'm Nomi. How can I help you today?", "isUser": false},
   ];
@@ -143,7 +142,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-            _isWithAgent ? lp.getString('live_support') : lp.getString('chat_nomi_title'), // TRANSLATED
+            _isWithAgent ? lp.getString('live_support') : lp.getString('chat_nomi_title'),
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -160,7 +159,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                   color: Colors.cyanAccent,
                 ),
                 label: Text(
-                  _isConnectingToAgent ? lp.getString('connecting') : lp.getString('live_support'), // TRANSLATED
+                  _isConnectingToAgent ? lp.getString('connecting') : lp.getString('live_support'),
                   style: const TextStyle(color: Colors.cyanAccent, fontSize: 12),
                 ),
               ),
@@ -208,6 +207,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                         return _buildMessageBubble({
                           "text": msg['content'],
                           "isUser": !msg['is_admin'],
+                          "isAdminAction": msg['is_admin'] == true && msg['content'] == '[ACTION:REPORT_BUSINESS]',
                         }, lp);
                       },
                     );
@@ -223,55 +223,61 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
     );
   }
 
+  // check is the admin send the report form
   Widget _buildMessageBubble(Map<String, dynamic> msg, LanguageProvider lp) {
     bool isUser = msg["isUser"] ?? false;
     bool showAction = msg["showAction"] ?? false;
+    bool isAdminAction = msg["isAdminAction"] ?? false;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
         crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              if (!isUser) _buildAvatar(isBot: true),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: isUser
-                        ? Colors.cyanAccent.withOpacity(0.15)
-                        : Colors.white.withOpacity(0.05),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(18),
-                      topRight: const Radius.circular(18),
-                      bottomLeft: Radius.circular(isUser ? 18 : 0),
-                      bottomRight: Radius.circular(isUser ? 0 : 18),
+          if (isAdminAction)
+            _buildAdminReportCard(lp)
+          else
+            Row(
+              mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!isUser) _buildAvatar(isBot: !_isWithAgent),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isUser
+                          ? Colors.cyanAccent.withOpacity(0.15)
+                          : Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isUser ? 18 : 0),
+                        bottomRight: Radius.circular(isUser ? 0 : 18),
+                      ),
+                      border: Border.all(
+                          color: isUser ? Colors.cyanAccent.withOpacity(0.2) : Colors.white.withOpacity(0.1)
+                      ),
                     ),
-                    border: Border.all(
-                        color: isUser ? Colors.cyanAccent.withOpacity(0.2) : Colors.white.withOpacity(0.1)
+                    child: Text(
+                        msg["text"],
+                        style: TextStyle(color: isUser ? Colors.white : Colors.white.withOpacity(0.9), fontSize: 14, height: 1.4)
                     ),
-                  ),
-                  child: Text(
-                      msg["text"],
-                      style: TextStyle(color: isUser ? Colors.white : Colors.white.withOpacity(0.9), fontSize: 14, height: 1.4)
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              if (isUser) _buildAvatar(isBot: false),
-            ],
-          ),
+                const SizedBox(width: 10),
+                if (isUser) _buildAvatar(isBot: false),
+              ],
+            ),
+
           if (showAction)
             Padding(
               padding: const EdgeInsets.only(left: 45, top: 12),
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportBusinessPage(userData: widget.userData, businessName: null))),
                 icon: const Icon(LucideIcons.fileWarning, size: 16, color: Colors.amberAccent),
-                label: Text(lp.getString('fill_report_btn'), style: const TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold)), // TRANSLATED
+                label: Text(lp.getString('fill_report_btn'), style: const TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.amberAccent.withOpacity(0.5)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -279,6 +285,62 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminReportCard(LanguageProvider lp) {
+    return Container(
+      margin: const EdgeInsets.only(left: 45, top: 5, bottom: 5),
+      width: 250,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.amberAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amberAccent.withOpacity(0.1),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: const Row(
+              children: [
+                Icon(LucideIcons.megaphone, color: Colors.amberAccent, size: 20),
+                SizedBox(width: 10),
+                Text("Report Business", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Text(
+                  lp.getString('report_card_desc') ?? "Please fill in the form to report a business.",
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 15),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportBusinessPage(userData: widget.userData))),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amberAccent,
+                      foregroundColor: const Color(0xFF0F0C29),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text(lp.getString('fill_report_btn'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -334,7 +396,7 @@ class _ChatNomiPageState extends State<ChatNomiPage> with TickerProviderStateMix
                     controller: _controller,
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     decoration: InputDecoration(
-                      hintText: _isWithAgent ? lp.getString('support_input_hint') : lp.getString('nomi_input_hint'), // TRANSLATED
+                      hintText: _isWithAgent ? lp.getString('support_input_hint') : lp.getString('nomi_input_hint'),
                       hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                       border: InputBorder.none,
                     ),

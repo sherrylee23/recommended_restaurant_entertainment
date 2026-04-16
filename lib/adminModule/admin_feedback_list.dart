@@ -11,12 +11,14 @@ class AdminFeedbackListPage extends StatefulWidget {
 }
 
 class _AdminFeedbackListPageState extends State<AdminFeedbackListPage> {
+  // clients
   final _supabase = Supabase.instance.client;
 
   @override
   Widget build(BuildContext context) {
+    // background
     return Scaffold(
-      backgroundColor: Colors.transparent, // Background handled by Dashboard Stack
+      backgroundColor: Colors.transparent,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text(
@@ -29,6 +31,7 @@ class _AdminFeedbackListPageState extends State<AdminFeedbackListPage> {
       ),
       body: SafeArea(
         child: FutureBuilder<List<Map<String, dynamic>>>(
+          // find feedback and join profiles database
           future: _supabase.from('feedbacks').select('''
                   *,
                   profiles (
@@ -38,20 +41,21 @@ class _AdminFeedbackListPageState extends State<AdminFeedbackListPage> {
                   )
                 ''').order('created_at', ascending: false),
           builder: (context, snapshot) {
+            // loading
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator(color: Colors.cyanAccent));
             }
-
+            // handle error
             if (snapshot.hasError) {
               return Center(child: Text("Error: ${snapshot.error}", style: const TextStyle(color: Colors.white70)));
             }
 
             final feedbacks = snapshot.data ?? [];
-
+            // handle empty state
             if (feedbacks.isEmpty) {
               return const Center(child: Text("No feedback received yet.", style: TextStyle(color: Colors.white54)));
             }
-
+            // render feedback list
             return ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: feedbacks.length,
@@ -181,6 +185,7 @@ class _AdminFeedbackListPageState extends State<AdminFeedbackListPage> {
     );
   }
 
+  // formats database timestamp to readable DD/MM/YYYY
   String _formatDate(String dateStr) {
     try {
       final date = DateTime.parse(dateStr).toLocal();

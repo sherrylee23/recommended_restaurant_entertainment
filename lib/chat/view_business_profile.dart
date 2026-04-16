@@ -2,11 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'chat_detail.dart';
 import 'package:recommended_restaurant_entertainment/businessModule/booking_form.dart';
 import 'package:intl/intl.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class UserViewBusinessPage extends StatefulWidget {
   final Map<String, dynamic> businessData;

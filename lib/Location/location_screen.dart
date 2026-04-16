@@ -6,10 +6,10 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'favorite_location.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class MapDiscoveryPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -33,7 +33,7 @@ class _MapDiscoveryPageState extends State<MapDiscoveryPage> {
     _initLocation();
   }
 
-  // --- LOGIC FUNCTIONS ---
+  // LOGIC FUNCTIONS
 
   Future<void> _initLocation() async {
     try {

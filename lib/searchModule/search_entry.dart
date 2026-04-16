@@ -1,10 +1,10 @@
-import 'dart:ui'; // Required for Glassmorphism
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/searchModule/search_result.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class SearchEntryPage extends StatefulWidget {
   final Map<String, dynamic> currentUserData;
@@ -31,7 +31,6 @@ class _SearchEntryPageState extends State<SearchEntryPage> {
     _fetchTopRankings();
   }
 
-  // --- LOGIC PRESERVED ---
 
   Future<void> _fetchCategoriesFromSupabase() async {
     try {

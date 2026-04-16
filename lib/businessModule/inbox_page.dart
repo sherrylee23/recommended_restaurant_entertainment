@@ -16,7 +16,7 @@ class BusinessInboxPage extends StatefulWidget {
 class _BusinessInboxPageState extends State<BusinessInboxPage> {
   final _supabase = Supabase.instance.client;
 
-  // --- LOGIC PRESERVED ---
+  // LOGIC PRESERVED
   String _formatDateTime(String? dateStr) {
     if (dateStr == null) return "";
     final DateTime date = DateTime.parse(dateStr).toLocal();
@@ -36,7 +36,7 @@ class _BusinessInboxPageState extends State<BusinessInboxPage> {
       backgroundColor: const Color(0xFF0F0C29),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Inquiries", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        title: const Text("Messages", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,

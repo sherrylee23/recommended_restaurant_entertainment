@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 class AdminApprovalList extends StatefulWidget {
   final Map<String, dynamic> adminData;
+
   const AdminApprovalList({super.key, required this.adminData});
 
   @override
@@ -13,6 +14,7 @@ class AdminApprovalList extends StatefulWidget {
 }
 
 class _AdminApprovalListState extends State<AdminApprovalList> {
+  // Variables
   List<dynamic> _pendingList = [];
   bool _isLoading = true;
 
@@ -22,18 +24,23 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
     _fetchPending();
   }
 
-  // --- Logic Preserved ---
+  // Logic Methods
+  // Opens the SSM document URL in external browser
   Future<void> _launchURL(String urlString) async {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Could not open SSM document"), backgroundColor: Colors.redAccent),
+          const SnackBar(
+            content: Text("Could not open SSM document"),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     }
   }
 
+  // find business profiles with pending status
   Future<void> _fetchPending() async {
     try {
       final data = await Supabase.instance.client
@@ -50,39 +57,56 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
     }
   }
 
+  // updates business status to approved or rejected
   Future<void> _processRequest(String id, String status) async {
     try {
-      await Supabase.instance.client.from('business_profiles').update({
-        'status': status,
-        'approved_by': widget.adminData['id'],
-      }).eq('id', id);
+      await Supabase.instance.client
+          .from('business_profiles')
+          .update({'status': status, 'approved_by': widget.adminData['id']})
+          .eq('id', id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Business $status successfully"),
-            backgroundColor: status == 'approved' ? Colors.greenAccent : Colors.redAccent,
+            backgroundColor: status == 'approved'
+                ? Colors.greenAccent
+                : Colors.redAccent,
           ),
         );
       }
+      // refresh list
       _fetchPending();
     } catch (e) {
       debugPrint("Update error: $e");
     }
   }
 
+  // UI
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.cyanAccent));
+    // show loading spin
+    if (_isLoading)
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.cyanAccent),
+      );
 
+    // show empty state if blank
     if (_pendingList.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.checkCircle, size: 60, color: Colors.white.withOpacity(0.2)),
+            Icon(
+              LucideIcons.checkCircle,
+              size: 60,
+              color: Colors.white.withOpacity(0.2),
+            ),
             const SizedBox(height: 16),
-            const Text("No pending registrations", style: TextStyle(color: Colors.white54, fontSize: 16)),
+            const Text(
+              "No pending registrations",
+              style: TextStyle(color: Colors.white54, fontSize: 16),
+            ),
           ],
         ),
       );
@@ -120,7 +144,10 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
                             color: Colors.cyanAccent.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(LucideIcons.store, color: Colors.cyanAccent),
+                          child: const Icon(
+                            LucideIcons.store,
+                            color: Colors.cyanAccent,
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -129,12 +156,19 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
                             children: [
                               Text(
                                 item['business_name'],
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 "SSM: ${item['register_no']}",
-                                style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.5),
+                                  fontSize: 13,
+                                ),
                               ),
                             ],
                           ),
@@ -148,24 +182,47 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
                       InkWell(
                         onTap: () => _launchURL(ssmUrl),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
+                            border: Border.all(
+                              color: Colors.cyanAccent.withOpacity(0.3),
+                            ),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(LucideIcons.fileText, size: 16, color: Colors.cyanAccent),
+                              Icon(
+                                LucideIcons.fileText,
+                                size: 16,
+                                color: Colors.cyanAccent,
+                              ),
                               SizedBox(width: 8),
-                              Text("View SSM Document", style: TextStyle(color: Colors.cyanAccent, fontSize: 13, fontWeight: FontWeight.bold)),
+                              Text(
+                                "View SSM Document",
+                                style: TextStyle(
+                                  color: Colors.cyanAccent,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       )
                     else
-                      Text("No document uploaded", style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12, fontStyle: FontStyle.italic)),
+                      Text(
+                        "No document uploaded",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.3),
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
 
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 20),
@@ -177,13 +234,26 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
                         // Reject Button
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: () => _processRequest(item['id'].toString(), 'rejected'),
+                            onPressed: () => _processRequest(
+                              item['id'].toString(),
+                              'rejected',
+                            ),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.redAccent.withOpacity(0.5)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: BorderSide(
+                                color: Colors.redAccent.withOpacity(0.5),
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
                               padding: const EdgeInsets.symmetric(vertical: 15),
                             ),
-                            child: const Text("Reject", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                            child: const Text(
+                              "Reject",
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 15),
@@ -191,21 +261,40 @@ class _AdminApprovalListState extends State<AdminApprovalList> {
                         Expanded(
                           child: Container(
                             decoration: BoxDecoration(
-                              gradient: const LinearGradient(colors: [Colors.greenAccent, Colors.tealAccent]),
+                              gradient: const LinearGradient(
+                                colors: [Colors.greenAccent, Colors.tealAccent],
+                              ),
                               borderRadius: BorderRadius.circular(12),
                               boxShadow: [
-                                BoxShadow(color: Colors.greenAccent.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))
+                                BoxShadow(
+                                  color: Colors.greenAccent.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
                               ],
                             ),
                             child: ElevatedButton(
-                              onPressed: () => _processRequest(item['id'].toString(), 'approved'),
+                              onPressed: () => _processRequest(
+                                item['id'].toString(),
+                                'approved',
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                padding: const EdgeInsets.symmetric(vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 15,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              child: const Text("Approve", style: TextStyle(color: Color(0xFF0F0C29), fontWeight: FontWeight.bold)),
+                              child: const Text(
+                                "Approve",
+                                style: TextStyle(
+                                  color: Color(0xFF0F0C29),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                         ),

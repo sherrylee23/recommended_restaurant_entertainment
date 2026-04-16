@@ -61,7 +61,7 @@ class UserProfilePageState extends State<UserProfilePage> {
     _profileSyncChannel!.subscribe();
   }
 
-  // --- DELETE ACCOUNT LOGIC ---
+  // DELETE ACCOUNT LOGIC
   Future<void> _handleDeleteAccount(LanguageProvider lp) async {
     final bool? confirm = await showDialog<bool>(
       context: context,

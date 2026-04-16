@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'view_business_profile.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class UserBookingHistoryPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -68,7 +68,7 @@ class UserBookingHistoryPage extends StatelessWidget {
             final bookings = snapshot.data!;
             if (bookings.isEmpty) return _buildStatusText(lp.getString('no_bookings'));
 
-            // --- LOGIC: Filter Today's Active Bookings ---
+            // filter today booking
             final upcomingToday = bookings.where((b) {
               bool isToday = b['booking_date'] == today;
               String bTime = b['booking_time'] ?? "00:00:00";

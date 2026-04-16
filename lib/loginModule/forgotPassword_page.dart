@@ -3,9 +3,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'updatePassword_page.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -40,7 +40,6 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  // --- Logic Preserved (Updated with Translations) ---
   Future<void> _sendResetLink(LanguageProvider lp) async {
     final email = _emailController.text.trim();
     if (email.isEmpty) return;
@@ -76,7 +75,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       backgroundColor: const Color(0xFF0F0C29),
       body: Stack(
         children: [
-          // 1. CONTINUOUS BACKGROUND WALLPAPER
+          // CONTINUOUS BACKGROUND WALLPAPER
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -89,7 +88,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             ),
           ),
 
-          // 2. CONTENT LAYER
+          // CONTENT LAYER
           SafeArea(
             child: Center(
               child: SingleChildScrollView(

@@ -1,11 +1,11 @@
 import 'dart:io';
-import 'dart:ui'; // Required for Glassmorphism
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // REQUIRED
-import '../language_provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
+import '../language_provider.dart';
 
 class EditPostPage extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -47,7 +47,6 @@ class _EditPostPageState extends State<EditPostPage> {
     _selectedCategories = List<String>.from(widget.post['category_names'] ?? []);
   }
 
-  // --- LOGIC PRESERVED ---
   Future<void> _searchLocations(String query) async {
     if (query.isEmpty) {
       setState(() => _locationResults = []);
@@ -74,14 +73,14 @@ class _EditPostPageState extends State<EditPostPage> {
       List<String> finalUrls = List.from(_existingUrls);
       final dynamic profileId = widget.post['profile_id'];
 
-      // 1. UPLOAD NEW MEDIA
+      // UPLOAD NEW MEDIA
       for (var i = 0; i < _newMedia.length; i++) {
         final path = 'posts/$profileId/edit_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
         await supabase.storage.from('post_media').upload(path, _newMedia[i]);
         finalUrls.add(supabase.storage.from('post_media').getPublicUrl(path));
       }
 
-      // 2. NORMALIZE CATEGORIES
+      // NORMALIZE CATEGORIES
       final normalizedCategories = _selectedCategories.map((cat) {
         String s = cat.trim();
         if (s.isEmpty) return s;
@@ -182,7 +181,7 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
-  // --- UI HELPERS WITH TRANSLATION ---
+  // UI
 
   Widget _buildTextField(TextEditingController c, String h, {int maxLines = 1}) => ClipRRect(
     borderRadius: BorderRadius.circular(15),
@@ -376,7 +375,7 @@ class _EditPostPageState extends State<EditPostPage> {
   );
 }
 
-// Full-screen viewer (logic unchanged)
+// Full-screen viewer
 class EditGalleryViewer extends StatefulWidget {
   final List<String> existingUrls;
   final List<File> newMedia;

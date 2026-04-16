@@ -11,12 +11,15 @@ class AdminChatPage extends StatefulWidget {
 }
 
 class _AdminChatPageState extends State<AdminChatPage> {
-  // We stream the list of chats where status is 'waiting_for_agent'
+  // stream to listen for real-time updates
+  // ordered by most recent
   final _chatStream = Supabase.instance.client
       .from('support_chats')
       .stream(primaryKey: ['id'])
       .order('last_message_at', ascending: false);
 
+
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -29,13 +32,15 @@ class _AdminChatPageState extends State<AdminChatPage> {
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _chatStream,
         builder: (context, snapshot) {
+          // handle loading state
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.cyanAccent));
 
           final chats = snapshot.data!;
+          // handle empty state
           if (chats.isEmpty) {
             return const Center(child: Text("No active support requests.", style: TextStyle(color: Colors.white38)));
           }
-
+          // build list of chat ticket
           return ListView.builder(
             itemCount: chats.length,
             itemBuilder: (context, index) {

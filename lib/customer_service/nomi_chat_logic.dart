@@ -13,9 +13,8 @@ class NomiChatLogic {
 
   void _initializeAI() {
     _model = GenerativeModel(
-      // FIXED: Always use 'gemini-1.5-flash' for stability in Flutter
       model: 'gemini-3-flash-preview',
-      apiKey: 'AIzaSyB0pr_xVmFdiHQB1ADxpKKaqQkmpzNaJDI',
+      apiKey: 'AIzaSyCMj2dwfLA1NNhPnZLJsqbPVo0DmTDfpQg', // paste API key
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
@@ -58,12 +57,11 @@ class NomiChatLogic {
     }
   }
 
-  // Inside nomi_chat_logic.dart
-
+// call live support
   Future<void> switchToHumanAgent() async {
     final userId = userData['id'];
     try {
-      // We update the support_tickets or chat_sessions table
+      // update the support_tickets or chat_sessions table
       // to alert the admin that a user is waiting.
       await Supabase.instance.client
           .from('support_chats')

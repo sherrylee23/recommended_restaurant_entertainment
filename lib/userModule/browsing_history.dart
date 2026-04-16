@@ -55,8 +55,7 @@ class _BrowsingHistoryPageState extends State<BrowsingHistoryPage> {
       final supabase = Supabase.instance.client;
       final viewerId = widget.userData['id'];
 
-      // --- LOGIC UPDATED TO MATCH USER PROFILE ---
-      // We filter the user_liked join by the current viewer's ID
+      // filter the user_liked join by the current viewer's ID
       final data = await supabase
           .from('browsing_history')
           .select('''
@@ -137,7 +136,6 @@ class _BrowsingHistoryPageState extends State<BrowsingHistoryPage> {
     final int postCommentCount = (post['comments'] as List?)?.isNotEmpty == true
         ? post['comments'][0]['count'] ?? 0 : 0;
 
-    // --- LOGIC MATCHED TO USER PROFILE ---
     // If user_liked list is not empty, it means the current viewer has liked it
     final bool isLikedByMe = (post['user_liked'] as List?)?.isNotEmpty == true;
 

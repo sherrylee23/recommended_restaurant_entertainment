@@ -14,7 +14,7 @@ class NomiChatLogic {
   void _initializeAI() {
     _model = GenerativeModel(
       model: 'gemini-3-flash-preview',
-      apiKey: 'AIzaSyCMj2dwfLA1NNhPnZLJsqbPVo0DmTDfpQg', // paste API key
+      apiKey: '', // paste API key
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),

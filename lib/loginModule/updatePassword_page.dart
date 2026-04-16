@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
-import '../language_provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
+import '../language_provider.dart';
 
 class UpdatePasswordPage extends StatefulWidget {
   const UpdatePasswordPage({super.key});
@@ -17,7 +17,6 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
   final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
 
-  // --- LOGIC PRESERVED EXACTLY (Updated with Translations) ---
   Future<void> _updatePassword(LanguageProvider lp) async {
     final password = _passwordController.text.trim();
     final confirm = _confirmPasswordController.text.trim();
@@ -77,7 +76,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
       backgroundColor: const Color(0xFF0F0C29),
       body: Stack(
         children: [
-          // 1. CONTINUOUS BACKGROUND WALLPAPER
+          // CONTINUOUS BACKGROUND WALLPAPER
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -90,7 +89,7 @@ class _UpdatePasswordPageState extends State<UpdatePasswordPage> {
             ),
           ),
 
-          // 2. CONTENT LAYER
+          // CONTENT LAYER
           SafeArea(
             child: Center(
               child: SingleChildScrollView(

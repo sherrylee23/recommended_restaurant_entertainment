@@ -35,7 +35,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
 
   Future<void> _fetchProfile() async {
     try {
-      // We query the database to get the freshest data including the profile_image_url
+      // get the freshest data including the profile_image_url
       final data = await Supabase.instance.client
           .from('business_profiles')
           .select()
@@ -117,7 +117,7 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
 
   Future<void> _deletePost(String postId, List<dynamic> imageUrls) async {
     try {
-      // 1. Delete images from storage first if they exist
+      // Delete images from storage first if they exist
       for (String url in imageUrls) {
         final uri = Uri.parse(url);
         final pathSegments = uri.pathSegments;
@@ -131,13 +131,13 @@ class _BusinessProfilePageState extends State<BusinessProfilePage> {
         ]);
       }
 
-      // 2. Delete the post record from the database
+      // Delete the post record from the database
       await Supabase.instance.client
           .from('business_posts')
           .delete()
           .eq('id', postId);
 
-      // 3. Update UI
+      // Update UI
       _fetchPosts();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

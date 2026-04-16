@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for Clipboard
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -31,7 +31,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     super.dispose();
   }
 
-  // --- FILTER LOGIC ---
+  // FILTER LOGIC
   List<Map<String, dynamic>> get _filteredBusinesses {
     if (_searchQuery.isEmpty) return _businessList;
     return _businessList.where((b) {
@@ -50,6 +50,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     }).toList();
   }
 
+  // find latest user and business from supabase
   Future<void> _fetchDetailedStats() async {
     try {
       final users = await Supabase.instance.client.from('profiles').select();
@@ -70,7 +71,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     }
   }
 
-  // --- ACTIONS ---
+  // changes business status to inactive
   Future<void> _toggleBusinessStatus(String id, String name, String currentStatus) async {
     final bool isDeactivating = currentStatus == 'approved';
     final String newStatus = isDeactivating ? 'inactive' : 'approved';
@@ -99,6 +100,75 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
     }
   }
 
+  // UI
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(title: const Text("System Statistics", style: TextStyle(color: Colors.white)), backgroundColor: Colors.transparent, elevation: 0),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
+          : Padding(
+        padding: const EdgeInsets.all(25),
+        child: GridView.count(
+          crossAxisCount: MediaQuery.of(context).size.width > 800 ? 2 : 1,
+          crossAxisSpacing: 20,
+          mainAxisSpacing: 20,
+          childAspectRatio: 1.4,
+          children: [
+            _statCard("Total Users", _userList.length.toString(), LucideIcons.users, Colors.blueAccent, () => _showDetails("User Directory", _userList, true)),
+            _statCard("Total Businesses", _businessList.length.toString(), LucideIcons.store, Colors.purpleAccent, () => _showDetails("Business History", _businessList, false)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+          Flexible(child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.end)),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String? dateStr) {
+    if (dateStr == null) return "N/A";
+    final date = DateTime.parse(dateStr);
+    return "${date.day}/${date.month}/${date.year}";
+  }
+
+  Future<void> _viewSSMDocument(String? url) async {
+    if (url == null || url.isEmpty) return;
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Widget _statCard(String title, String value, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(25),
+      child: Container(
+        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.white.withOpacity(0.1))),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 40, color: color),
+            const SizedBox(height: 10),
+            Text(value, style: const TextStyle(fontSize: 38, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(title, style: TextStyle(color: Colors.white.withOpacity(0.5))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  //Displays a detailed list in a bottom sheet with search functionality
   void _showDetails(String title, List<Map<String, dynamic>> data, bool isUser) {
     _searchQuery = "";
     _searchController.clear();
@@ -109,6 +179,7 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
+          // Inner filtering logic for the Modal
           final currentList = isUser ? _filteredUsers : _filteredBusinesses;
 
           return BackdropFilter(
@@ -221,73 +292,6 @@ class _AdminStatsPageState extends State<AdminStatsPage> {
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
-          Flexible(child: Text(value, style: const TextStyle(color: Colors.white, fontSize: 12), textAlign: TextAlign.end)),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(String? dateStr) {
-    if (dateStr == null) return "N/A";
-    final date = DateTime.parse(dateStr);
-    return "${date.day}/${date.month}/${date.year}";
-  }
-
-  Future<void> _viewSSMDocument(String? url) async {
-    if (url == null || url.isEmpty) return;
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(title: const Text("System Statistics", style: TextStyle(color: Colors.white)), backgroundColor: Colors.transparent, elevation: 0),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
-          : Padding(
-        padding: const EdgeInsets.all(25),
-        child: GridView.count(
-          crossAxisCount: MediaQuery.of(context).size.width > 800 ? 2 : 1,
-          crossAxisSpacing: 20,
-          mainAxisSpacing: 20,
-          childAspectRatio: 1.4,
-          children: [
-            _statCard("Total Users", _userList.length.toString(), LucideIcons.users, Colors.blueAccent, () => _showDetails("User Directory", _userList, true)),
-            _statCard("Total Businesses", _businessList.length.toString(), LucideIcons.store, Colors.purpleAccent, () => _showDetails("Business History", _businessList, false)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statCard(String title, String value, IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(25),
-      child: Container(
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.white.withOpacity(0.1))),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 40, color: color),
-            const SizedBox(height: 10),
-            Text(value, style: const TextStyle(fontSize: 38, fontWeight: FontWeight.bold, color: Colors.white)),
-            Text(title, style: TextStyle(color: Colors.white.withOpacity(0.5))),
-          ],
-        ),
       ),
     );
   }

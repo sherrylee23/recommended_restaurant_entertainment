@@ -1,13 +1,13 @@
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/postModule/edit_post.dart';
 import 'package:recommended_restaurant_entertainment/reportModule/report.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
 import 'package:recommended_restaurant_entertainment/searchModule/search_result.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class PostDetailPage extends StatefulWidget {
   final Map<String, dynamic> post;

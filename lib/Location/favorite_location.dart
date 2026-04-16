@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
-import '../language_provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
+import '../language_provider.dart';
 
 class FavoritesPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -25,7 +25,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
     _fetchFavorites();
   }
 
-  // --- LOGIC FUNCTIONS (STRICTLY PRESERVED) ---
 
   Future<void> _fetchFavorites() async {
     if (!mounted) return;

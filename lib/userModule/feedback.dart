@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart'; // REQUIRED
-import '../language_provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
+import '../language_provider.dart';
 
 class FeedbackPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -23,7 +23,6 @@ class _FeedbackPageState extends State<FeedbackPage> {
   bool _isUploading = false;
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // --- LOGIC PRESERVED ---
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);

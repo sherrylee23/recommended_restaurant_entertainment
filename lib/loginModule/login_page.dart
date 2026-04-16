@@ -1,10 +1,9 @@
-import 'dart:ui'; // Required for BackdropFilter (Glass effect)
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 
-// Your existing imports
 import 'package:recommended_restaurant_entertainment/main.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/register_page.dart';
 import 'package:recommended_restaurant_entertainment/adminModule/admin_dashboard.dart';

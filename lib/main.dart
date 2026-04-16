@@ -1,24 +1,23 @@
 import 'dart:async';
-import 'dart:ui'; // Required for Glassmorphism
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/Location/location_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:async/async.dart';
 
-// Import your pages
 import 'package:recommended_restaurant_entertainment/loginModule/login_page.dart';
 import 'package:recommended_restaurant_entertainment/discoverModule/discoverPage.dart';
 import 'package:recommended_restaurant_entertainment/loginModule/updatePassword_page.dart';
 import 'package:recommended_restaurant_entertainment/postModule/createPost.dart';
 import 'package:recommended_restaurant_entertainment/userModule/user_profile.dart';
 import 'package:recommended_restaurant_entertainment/chat/chat_page.dart';
-import 'language_provider.dart'; // REQUIRED
+import 'language_provider.dart';
 import 'get_start.dart';
 
-// 1. Your Supabase Credentials preserved
+// Your Supabase Credentials preserved
 const String url = 'https://bljokgoarqfpkcthkmvq.supabase.co';
 const String key = 'sb_secret_99fIQ1nuXy1Hz1f2yYnrqQ_HsatXb3B';
 
@@ -79,7 +78,7 @@ class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 0;
   late final StreamSubscription<AuthState> _authSubscription;
 
-  // --- REALTIME SYNC CHANNEL ---
+  // REALTIME SYNC CHANNEL
   late final RealtimeChannel _databaseChanges;
 
   final GlobalKey<UserProfilePageState> _profileKey =
@@ -97,7 +96,7 @@ class _MainNavigationState extends State<MainNavigation> {
       UserProfilePage(key: _profileKey, userData: widget.userData),
     ];
 
-    // --- INITIALIZE REALTIME SYNC ---
+    // INITIALIZE REALTIME SYNC
     _databaseChanges = Supabase.instance.client
         .channel('public:realtime_sync')
         .onPostgresChanges(
@@ -133,7 +132,7 @@ class _MainNavigationState extends State<MainNavigation> {
     super.dispose();
   }
 
-  // --- LOGIC PRESERVED: Stream for notifications ---
+  // Stream for notifications
   Stream<bool> _globalNotificationStream() async* {
     final supabase = Supabase.instance.client;
     final userId = widget.userData['id'];
@@ -164,7 +163,7 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
-  // --- LOGIC PRESERVED: Condition checks ---
+  // condition checks
   Future<bool> _checkRedDotConditions(SupabaseClient supabase, dynamic userId) async {
     try {
       final queryUserId = userId;

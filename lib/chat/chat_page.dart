@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'chat_detail.dart';
 import 'view_business_profile.dart';
 import 'package:recommended_restaurant_entertainment/reportModule/system_message.dart';
 import 'user_booking_history.dart';
 import 'comment_notification.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class UserInboxPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -66,7 +66,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
   @override
   Widget build(BuildContext context) {
-    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+    final lp = Provider.of<LanguageProvider>(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F0C29),
@@ -97,7 +97,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
                 color: Colors.blueAccent,
                 child: _searchQuery.isEmpty
                     ? CustomScrollView(
-                  key: _refreshKey,
+                  key: _refreshKey, // refresh the page
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverPadding(
@@ -145,7 +145,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
   }
 
   Widget _buildChatHistorySliver(LanguageProvider lp) {
-    final userId = widget.userData['id'];
+    final userId = widget.userData['id'].toString(); // declare to string
 
     return StreamBuilder<List<Map<String, dynamic>>>(
       key: ValueKey('chat_stream_${_refreshKey.toString()}'),
@@ -156,7 +156,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
 
         final messages = snapshot.data!;
         final businessIds = messages
-            .map((m) => m['is_from_business'] ? m['sender_id'] : m['receiver_id'])
+            .map((m) => m['is_from_business'] ? m['sender_id'].toString() : m['receiver_id'].toString())
             .toSet()
             .where((id) => id != userId)
             .toList();
@@ -180,20 +180,22 @@ class _UserInboxPageState extends State<UserInboxPage> {
   }
 
   Widget _buildBusinessTile(dynamic bId, List<Map<String, dynamic>> allMessages) {
-    final userId = widget.userData['id'];
+    final userId = widget.userData['id'].toString();
+    final String targetBId = bId.toString();
 
-    final conversation = allMessages.where((m) =>
-    (m['sender_id'] == userId && m['receiver_id'] == bId) ||
-        (m['sender_id'] == bId && m['receiver_id'] == userId)
-    ).toList();
+    final conversation = allMessages.where((m) {
+      final String mSenderId = m['sender_id'].toString();
+      final String mReceiverId = m['receiver_id'].toString();
+      return (mSenderId == userId && mReceiverId == targetBId) ||
+          (mSenderId == targetBId && mReceiverId == userId);
+    }).toList();
 
     if (conversation.isEmpty) return const SizedBox.shrink();
 
     final lastMsg = conversation.first;
-
     final int unreadCount = conversation.where((m) =>
-    m['sender_id'] == bId &&
-        m['receiver_id'] == userId &&
+    m['sender_id'].toString() == targetBId &&
+        m['receiver_id'].toString() == userId &&
         m['is_read'] == false
     ).length;
 
@@ -226,52 +228,33 @@ class _UserInboxPageState extends State<UserInboxPage> {
                 ),
                 if (hasUnread)
                   Positioned(
-                    right: -2,
-                    top: -2,
+                    right: -2, top: -2,
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                       decoration: BoxDecoration(
-                        color: Colors.redAccent,
-                        shape: BoxShape.circle,
+                        color: Colors.redAccent, shape: BoxShape.circle,
                         border: Border.all(color: const Color(0xFF16162E), width: 2),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.redAccent.withOpacity(0.4),
-                            blurRadius: 6,
-                            spreadRadius: 1,
-                          )
-                        ],
                       ),
                       child: Center(
-                        child: Text(
-                          unreadCount > 9 ? "9+" : unreadCount.toString(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        child: Text(unreadCount > 9 ? "9+" : unreadCount.toString(),
+                          style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),
                   ),
               ],
             ),
-            title: Text(
-                business['business_name'] ?? "Business",
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)
-            ),
-            subtitle: Text(
-                lastMsg['content'] ?? "",
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            title: Text(business['business_name'] ?? "Business",
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+            subtitle: Text(lastMsg['content'] ?? "",
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: hasUnread ? Colors.white : Colors.white38,
                   fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
                 )
             ),
-            trailing: Text(
-                _formatDateTime(lastMsg['created_at']),
+            trailing: Text(_formatDateTime(lastMsg['created_at']),
                 style: TextStyle(fontSize: 10, color: hasUnread ? Colors.blueAccent : Colors.white24)
             ),
             onTap: () async {
@@ -281,6 +264,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
                   .eq('sender_id', bId);
 
               if (mounted) {
+                setState(() { _refreshKey = UniqueKey(); }); // refresh stream
                 Navigator.push(context, MaterialPageRoute(
                     builder: (context) => UserChatDetailPage(userData: widget.userData, businessData: business)
                 ));
@@ -300,7 +284,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
         onChanged: (value) => setState(() => _searchQuery = value),
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          hintText: lp.getString('search_businesses'), // TRANSLATED
+          hintText: lp.getString('search_businesses'),
           hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
           prefixIcon: const Icon(LucideIcons.search, color: Colors.blueAccent, size: 20),
           suffixIcon: _searchQuery.isNotEmpty
@@ -337,18 +321,21 @@ class _UserInboxPageState extends State<UserInboxPage> {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _supabase.from('notifications').stream(primaryKey: ['id']).eq('user_id', widget.userData['id']),
       builder: (context, snapshot) {
-        final hasUnread = snapshot.hasData && snapshot.data!.any((msg) => msg['is_read'] == false);
+        // check chat type
+        final hasUnread = snapshot.hasData && snapshot.data!.any((msg) => msg['is_read'] == false || msg['is_read'] == 0);
         return _buildNotificationTile(
             icon: LucideIcons.messageCircle,
             iconColor: Colors.orangeAccent,
-            title: lp.getString('post_comments_title'), // TRANSLATED
-            subtitle: lp.getString('post_comments_sub'), // TRANSLATED
+            title: lp.getString('post_comments_title'),
+            subtitle: lp.getString('post_comments_sub'),
             hasUnread: hasUnread,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => CommentNotificationPage(userData: widget.userData))));
+            onTap: () {
+              setState(() { _refreshKey = UniqueKey(); });
+              Navigator.push(context, MaterialPageRoute(builder: (context) => CommentNotificationPage(userData: widget.userData)));
+            });
       },
     );
   }
-
 
   Widget _buildSystemNotificationTile(LanguageProvider lp) {
     return StreamBuilder<List<Map<String, dynamic>>>(
@@ -360,13 +347,13 @@ class _UserInboxPageState extends State<UserInboxPage> {
         if (snapshot.hasError) return const SizedBox.shrink();
 
         final bool hasUnread = snapshot.hasData &&
-            snapshot.data!.any((msg) => msg['is_read'] == false);
+            snapshot.data!.any((msg) => msg['is_read'] == false || msg['is_read'] == 0);
 
         return _buildNotificationTile(
           icon: LucideIcons.bell,
           iconColor: Colors.redAccent,
-          title: lp.getString('system_notif_title'), // TRANSLATED
-          subtitle: lp.getString('system_notif_sub'), // TRANSLATED
+          title: lp.getString('system_notif_title'),
+          subtitle: lp.getString('system_notif_sub'),
           hasUnread: hasUnread,
           onTap: () async {
             await _supabase
@@ -375,7 +362,8 @@ class _UserInboxPageState extends State<UserInboxPage> {
                 .eq('user_id', widget.userData['id'])
                 .eq('is_read', false);
 
-            if (context.mounted) {
+            if (mounted) {
+              setState(() { _refreshKey = UniqueKey(); }); // 确保返回时红点消失
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -424,8 +412,7 @@ class _UserInboxPageState extends State<UserInboxPage> {
         ),
         if (showDot)
           Positioned(
-            right: 8,
-            top: 8,
+            right: 8, top: 8,
             child: Container(
               width: 8, height: 8,
               decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),

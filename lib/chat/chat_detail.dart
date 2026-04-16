@@ -2,10 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/businessModule/booking_form.dart';
 import 'view_business_profile.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class UserChatDetailPage extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -48,7 +48,8 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final lp = Provider.of<LanguageProvider>(context); // Access Provider
+    final lp = Provider.of<LanguageProvider>(context);
+    // declare to string
     final String userId = widget.userData['id'].toString();
     final String businessId = widget.businessData['id'].toString();
 
@@ -85,11 +86,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                     : null,
                 child: (widget.businessData['profile_url'] == null ||
                     widget.businessData['profile_url'].toString().isEmpty)
-                    ? const Icon(
-                  LucideIcons.store,
-                  color: Colors.blueAccent,
-                  size: 16,
-                )
+                    ? const Icon(LucideIcons.store, color: Colors.blueAccent, size: 16)
                     : null,
               ),
               const SizedBox(width: 10),
@@ -109,7 +106,7 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                       maxLines: 1,
                     ),
                     Text(
-                      lp.getString('view_profile'), // TRANSLATED
+                      lp.getString('view_profile'),
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.blueAccent.withOpacity(0.8),
@@ -126,13 +123,9 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             child: ElevatedButton.icon(
               onPressed: _navigateToBooking,
-              icon: const Icon(
-                LucideIcons.calendarDays,
-                size: 14,
-                color: Colors.white,
-              ),
+              icon: const Icon(LucideIcons.calendarDays, size: 14, color: Colors.white),
               label: Text(
-                lp.getString('book_btn'), // TRANSLATED
+                lp.getString('book_btn'),
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
@@ -174,70 +167,48 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
           .stream(primaryKey: ['id'])
           .order('created_at', ascending: false),
       builder: (context, snapshot) {
-        if (snapshot.hasError)
-          return Center(
-            child: Text(
-              lp.getString('error_loading_msgs'), // TRANSLATED
-              style: const TextStyle(color: Colors.white),
-            ),
-          );
-        if (!snapshot.hasData)
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.blueAccent),
-          );
+        if (snapshot.hasError) return Center(child: Text(lp.getString('error_loading_msgs'), style: const TextStyle(color: Colors.white)));
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Colors.blueAccent));
 
         final messages = snapshot.data!.where((m) {
           final String mSenderId = m['sender_id'].toString();
           final String mReceiverId = m['receiver_id'].toString();
+
           return (mSenderId == userId && mReceiverId == businessId) ||
               (mSenderId == businessId && mReceiverId == userId);
         }).toList();
 
         return ListView.builder(
           controller: _scrollController,
-          reverse: true,
+          reverse: true, // show the latest detail at bottom
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           itemCount: messages.length,
           itemBuilder: (context, index) {
             final msg = messages[index];
             final bool isMe = msg['is_from_business'] == false;
-
-            final DateTime? createdAt = DateTime.tryParse(
-              msg['created_at'] ?? "",
-            );
+            final DateTime? createdAt = DateTime.tryParse(msg['created_at'] ?? "");
             final String timeString = createdAt != null
                 ? "${createdAt.hour.toString().padLeft(2, '0')}:${createdAt.minute.toString().padLeft(2, '0')}"
                 : "";
 
             return Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Align(
-                  alignment: isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 4),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     constraints: BoxConstraints(
                       maxWidth: MediaQuery.of(context).size.width * 0.75,
                     ),
                     decoration: BoxDecoration(
                       gradient: isMe
-                          ? const LinearGradient(
-                        colors: [Colors.blueAccent, Color(0xFF6A11CB)],
-                      )
-                          : LinearGradient(
-                        colors: [
-                          Colors.white.withOpacity(0.1),
-                          Colors.white.withOpacity(0.05),
-                        ],
-                      ),
+                          ? const LinearGradient(colors: [Colors.blueAccent, Color(0xFF6A11CB)])
+                          : LinearGradient(colors: [
+                        Colors.white.withOpacity(0.1),
+                        Colors.white.withOpacity(0.05),
+                      ]),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(20),
                         topRight: const Radius.circular(20),
@@ -284,19 +255,14 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                 controller: _messageController,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: lp.getString('type_message'), // TRANSLATED
+                  hintText: lp.getString('type_message'),
                   hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
                   filled: true,
                   fillColor: Colors.white.withOpacity(0.05),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(25),
-                    borderSide: BorderSide(
-                      color: Colors.white.withOpacity(0.1),
-                    ),
+                    borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
                   ),
                 ),
               ),
@@ -314,6 +280,15 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                     'content': text,
                     'is_from_business': false,
                   });
+
+                  // scroll down after sent
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      0.0,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
                 } catch (e) {
                   debugPrint("Send Error: $e");
                 }
@@ -322,15 +297,9 @@ class _UserChatDetailPageState extends State<UserChatDetailPage> {
                 padding: const EdgeInsets.all(10),
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [Colors.blueAccent, Colors.purpleAccent],
-                  ),
+                  gradient: LinearGradient(colors: [Colors.blueAccent, Colors.purpleAccent]),
                 ),
-                child: const Icon(
-                  LucideIcons.send,
-                  color: Colors.white,
-                  size: 18,
-                ),
+                child: const Icon(LucideIcons.send, color: Colors.white, size: 18),
               ),
             ),
           ],

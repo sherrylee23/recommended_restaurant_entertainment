@@ -1,10 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/userModule/feedback.dart';
 import 'package:recommended_restaurant_entertainment/customer_service/nomi_chat_screen.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class HelpCenterPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -78,7 +78,7 @@ class HelpCenterPage extends StatelessWidget {
     );
   }
 
-  // --- Helper Methods ---
+  // Helper Methods
 
   Widget _buildSectionHeader(String title) {
     return Padding(

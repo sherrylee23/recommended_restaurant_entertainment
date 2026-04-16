@@ -21,6 +21,7 @@ class BookingFormPage extends StatefulWidget {
 }
 
 class _BookingFormPageState extends State<BookingFormPage> {
+  // controllers and keys
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -30,7 +31,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
 
-  // --- LOGIC PRESERVED ---
+  // date time selection
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -51,6 +52,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     if (picked != null) setState(() => _selectedTime = picked);
   }
 
+  // validates and submit
   Future<void> _submitBooking() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -82,6 +84,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
     }
   }
 
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,7 +142,7 @@ class _BookingFormPageState extends State<BookingFormPage> {
                 ),
                 const SizedBox(height: 25),
 
-                // --- DATE & TIME SELECTION ---
+                // DATE & TIME SELECTION
                 Row(
                   children: [
                     Expanded(child: _buildPickerTile(
@@ -160,7 +163,6 @@ class _BookingFormPageState extends State<BookingFormPage> {
 
                 const SizedBox(height: 40),
 
-                // --- NEON SUBMIT BUTTON ---
                 InkWell(
                   onTap: _submitBooking,
                   child: Container(

@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:ui'; // Required for Glassmorphism
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import '../postModule/post_detail.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class SearchResultsPage extends StatefulWidget {
   final String query;
@@ -27,7 +27,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   List<Map<String, dynamic>> _results = [];
   String _selectedSort = 'All';
 
-  // --- REALTIME STATE ---
+  // realtime
   RealtimeChannel? _searchSyncChannel;
 
   @override
@@ -45,7 +45,6 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     super.dispose();
   }
 
-  // --- REALTIME LOGIC ---
   void _setupRealtime() {
     _searchSyncChannel = Supabase.instance.client
         .channel('search_results_sync')
@@ -63,7 +62,6 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
     _searchSyncChannel!.subscribe();
   }
 
-  // --- LOGIC PRESERVED ---
   Future<void> _performSearch() async {
     try {
       final supabase = Supabase.instance.client;

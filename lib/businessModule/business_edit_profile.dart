@@ -15,6 +15,7 @@ class BusinessEditProfilePage extends StatefulWidget {
 }
 
 class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
+  // controllera
   late TextEditingController _nameController;
   late TextEditingController _addressController;
   late TextEditingController _hoursController;
@@ -22,6 +23,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
   late TextEditingController _idController;
   late TextEditingController _typeController;
 
+  // state variables
   bool _isSaving = false;
   File? _imageFile;
   String? _imageUrl;
@@ -30,6 +32,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
   @override
   void initState() {
     super.initState();
+    // initialize data
     _imageUrl = widget.businessData['profile_url']?.toString();
     _selectedLocationId = widget.businessData['location_id']?.toString();
 
@@ -52,7 +55,8 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
     super.dispose();
   }
 
-  // --- LOGIC PRESERVED: Location Picker ---
+  // location logic
+  // open a blurred bottom sheet to search and pick from location table
   Future<void> _showLocationPicker() async {
     final TextEditingController modalSearchController = TextEditingController();
     Timer? debounce;
@@ -164,7 +168,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
     }
   }
 
-  // --- LOGIC PRESERVED: Image & Save ---
+  // image and save
   Future<void> _pickImage() async {
     final ImagePicker picker = ImagePicker();
     final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
@@ -172,6 +176,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
   }
 
   Future<String?> _uploadImage(String businessId) async {
+    // upload image if changed
     if (_imageFile == null) return _imageUrl;
     try {
       final fileName = '$businessId-${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -188,7 +193,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
     try {
       final int numericId = int.parse(_idController.text);
       String? finalImageUrl = await _uploadImage(numericId.toString());
-
+      // update database
       await Supabase.instance.client.from('business_profiles').update({
         'address': _addressController.text.trim(),
         'hours': _hoursController.text.trim(),
@@ -209,6 +214,7 @@ class _BusinessEditProfilePageState extends State<BusinessEditProfilePage> {
     }
   }
 
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(

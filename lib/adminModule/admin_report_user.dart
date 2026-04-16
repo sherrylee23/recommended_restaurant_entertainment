@@ -14,7 +14,8 @@ class AdminReportUserListPage extends StatefulWidget {
 class _AdminReportUserListPageState extends State<AdminReportUserListPage> {
   final _supabase = Supabase.instance.client;
 
-  // --- Logic Preserved ---
+  // Logic Preserved
+  // navigates to the detailed view of the reported post
   void _navigateToPostDetail(Map<String, dynamic> postData) {
     final String authorName = postData['profiles'] != null
         ? postData['profiles']['username'] ?? "User"
@@ -26,13 +27,16 @@ class _AdminReportUserListPageState extends State<AdminReportUserListPage> {
         builder: (context) => PostDetailPage(
           post: postData,
           userName: authorName,
-          viewerProfileId: null,
+          viewerProfileId: null, // Admin views as guest/neutral
         ),
       ),
     );
   }
 
-  // --- Logic Preserved ---
+  // Logic Preserved
+  // updates report status
+  // notifies reporter
+  // deletes post if shouldDelete is true
   Future<void> _handleResolution(Map<String, dynamic> report, String remark, bool shouldDelete) async {
     if (remark.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -64,7 +68,6 @@ class _AdminReportUserListPageState extends State<AdminReportUserListPage> {
 
       if (postRes?['profile_id'] != null) {
         if (shouldDelete) {
-          // --- FIX STARTS HERE: DELETE CHILD RECORDS FIRST ---
 
           // Delete Likes
           await _supabase.from('likes').delete().eq('post_id', postIdStr);
@@ -75,7 +78,6 @@ class _AdminReportUserListPageState extends State<AdminReportUserListPage> {
           // Delete Notifications related to this post
           await _supabase.from('notifications').delete().eq('related_post_id', postIdStr);
 
-          // --- END OF CHILD DELETION ---
 
           // Notify the owner of the post
           await _supabase.from('system_messages').insert({
@@ -84,7 +86,7 @@ class _AdminReportUserListPageState extends State<AdminReportUserListPage> {
             'content': "Result: Your post has been removed by Admin.\nRemark: $remark",
           });
 
-          // 3. Finally, delete the post (now that comments are gone)
+          // 3. Finally, delete the post
           await _supabase.from('posts').delete().eq('id', postIdStr);
         } else {
           await _supabase.from('system_messages').insert({
@@ -105,7 +107,7 @@ class _AdminReportUserListPageState extends State<AdminReportUserListPage> {
     }
   }
 
-  // --- Designed Dialog ---
+  // Designed Dialog
   void _showFeedbackDialog(Map<String, dynamic> report) {
     final controller = TextEditingController();
     showDialog(

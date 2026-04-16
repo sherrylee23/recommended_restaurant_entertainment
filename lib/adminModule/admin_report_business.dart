@@ -11,8 +11,10 @@ class AdminReportBusinessListPage extends StatefulWidget {
 }
 
 class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPage> {
+  // clients
   final _supabase = Supabase.instance.client;
 
+  // open dialog to provide feedback
   void _showFeedbackDialog(Map<String, dynamic> report) {
     final controller = TextEditingController();
     showDialog(
@@ -72,6 +74,7 @@ class _AdminReportBusinessListPageState extends State<AdminReportBusinessListPag
     );
   }
 
+  // UI
   @override
   Widget build(BuildContext context) {
     return Scaffold(

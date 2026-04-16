@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart'; // REQUIRED
-import '../language_provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
+import '../language_provider.dart';
 
 class ReportPage extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -30,7 +30,6 @@ class _ReportPageState extends State<ReportPage> {
     'reason_other'
   ];
 
-  // --- LOGIC PRESERVED ---
   Future<void> _submitReport(LanguageProvider lp) async {
     setState(() => _isLoading = true);
     try {

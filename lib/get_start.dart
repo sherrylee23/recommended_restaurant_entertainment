@@ -1,14 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'loginModule/login_page.dart';
-import 'language_provider.dart'; // REQUIRED
+import 'language_provider.dart';
 
 class GetStartedPage extends StatelessWidget {
   const GetStartedPage({super.key});
 
-  // --- LANGUAGE SELECTION DIALOG ---
+  // LANGUAGE SELECTION DIALOG
   void _showLanguageDialog(BuildContext context) {
     final lp = Provider.of<LanguageProvider>(context, listen: false);
 
@@ -106,7 +106,7 @@ class GetStartedPage extends StatelessWidget {
 
                 const Spacer(flex: 6),
 
-                // --- Bottom Section: Translated Intro Text & Button ---
+                // Translated Intro Text & Button
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 45),
                   child: Column(
@@ -168,7 +168,7 @@ class GetStartedPage extends StatelessWidget {
               ],
             ),
 
-            // --- NEW: TOP RIGHT LANGUAGE BUTTON ---
+            // TOP RIGHT LANGUAGE BUTTON
             Positioned(
               top: MediaQuery.of(context).padding.top + 10,
               right: 20,

@@ -1,11 +1,11 @@
-import 'dart:ui'; // Required for Glassmorphism
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart'; // REQUIRED
+import 'package:provider/provider.dart';
 import 'package:recommended_restaurant_entertainment/searchModule/search_entry.dart';
 import '../postModule/post_detail.dart';
-import '../language_provider.dart'; // REQUIRED
+import '../language_provider.dart';
 
 class DiscoverPage extends StatefulWidget {
   final Map<String, dynamic> currentUserData;
@@ -19,7 +19,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   List<Map<String, dynamic>> _posts = [];
   bool _isLoading = true;
 
-  // --- REALTIME CHANNEL ---
+  // realtime
   RealtimeChannel? _discoverSyncChannel;
 
   @override
@@ -31,14 +31,14 @@ class _DiscoverPageState extends State<DiscoverPage> {
 
   @override
   void dispose() {
-    // --- DISPOSE REALTIME CHANNEL ---
+    // DISPOSE REALTIME CHANNEL
     if (_discoverSyncChannel != null) {
       Supabase.instance.client.removeChannel(_discoverSyncChannel!);
     }
     super.dispose();
   }
 
-  // --- REALTIME LOGIC ---
+  // REALTIME LOGIC
   void _setupRealtime() {
     _discoverSyncChannel = Supabase.instance.client
         .channel('discover_sync')
@@ -56,7 +56,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
     _discoverSyncChannel!.subscribe();
   }
 
-  // --- LOGIC PRESERVED ---
   String get _postSelectQuery => '''
     *, 
     profiles(username, profile_url), 
